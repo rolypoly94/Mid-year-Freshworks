@@ -9,7 +9,6 @@ import { formatDate, cn } from '../../lib/utils';
 import { User } from 'firebase/auth';
 import { AuditTrailSection } from './AuditTrailSection';
 import { OverrideModal } from './OverrideModal';
-import { IS_DEMO_MODE } from '../../lib/demo-mode';
 import { 
   Users, 
   Briefcase, 
@@ -45,14 +44,6 @@ export const EmployeeView = ({
   const handleAcknowledge = async () => {
     if (!employee || !user) return;
     
-    if (IS_DEMO_MODE) {
-      setIsAcknowledging(true);
-      await new Promise(r => setTimeout(r, 600));
-      showToast?.('Demo Mode — Feedback acknowledged (not persisted)', 'success');
-      setIsAcknowledging(false);
-      return;
-    }
-
     setIsAcknowledging(true);
     try {
       const timestamp = new Date().toISOString();

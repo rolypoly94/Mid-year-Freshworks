@@ -21,10 +21,6 @@ import { HRBPView } from './components/views/HRBPView';
 import { EmployeeView } from './components/views/EmployeeView';
 import { BellCurveChart } from './components/charts/BellCurveChart';
 
-import { DemoViewSwitcher } from './components/ui/DemoViewSwitcher';
-import { useDemo } from './context/DemoContext';
-import { IS_DEMO_MODE } from './lib/demo-mode';
-
 const App = () => {
   // --- Auth & State ---
   const { user, isAdmin, isAdminLoaded, isAuthReady, login, logout } = useAuth();
@@ -99,17 +95,6 @@ const App = () => {
     midYearData.performance_trending_rating !== '', 
     [midYearData]
   );
-
-  const demoContext = IS_DEMO_MODE ? useDemo() : null;
-
-  useEffect(() => {
-    if (IS_DEMO_MODE && demoContext) {
-      if (demoContext.perspective === 'admin') setViewMode('admin');
-      else if (demoContext.perspective === 'manager') setViewMode('manager');
-      else if (demoContext.perspective === 'hrbp') setViewMode('hrbp');
-      else if (demoContext.perspective === 'employee') setViewMode('employee');
-    }
-  }, [demoContext?.perspective]);
 
   const isDraftValid = useMemo(() => 
     midYearData.doing_well.trim() !== '' ||
@@ -217,7 +202,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      {IS_DEMO_MODE && <DemoViewSwitcher />}
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </AnimatePresence>
@@ -233,11 +217,6 @@ const App = () => {
               <span className="ml-3 text-xl font-extrabold text-gray-900 tracking-tight hidden sm:block">
                 FPI <span className="text-blue-600">Portal</span>
               </span>
-              {IS_DEMO_MODE && (
-                <div className="ml-4 px-2 py-1 bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-widest rounded-md border border-amber-200">
-                  Demo
-                </div>
-              )}
             </div>
             
             <div className="flex bg-gray-100/80 p-1.5 rounded-2xl gap-1">

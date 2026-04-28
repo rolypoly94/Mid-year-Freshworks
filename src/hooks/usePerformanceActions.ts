@@ -4,7 +4,6 @@ import { db } from '../firebase';
 import { MidYearCheckin, EmployeeAuditEntry } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { User } from 'firebase/auth';
-import { IS_DEMO_MODE } from '../lib/demo-mode';
 
 export const usePerformanceActions = (showToast: (msg: string, type?: any) => void) => {
   const [isSaving, setIsSaving] = useState(false);
@@ -14,13 +13,6 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
   const saveFeedback = async (employeeId: string, data: MidYearCheckin, isFinal: boolean, user: User | null) => {
     const setSaving = isFinal ? setIsSaving : setIsSavingDraft;
     setSaving(true);
-
-    if (IS_DEMO_MODE) {
-      await new Promise(r => setTimeout(r, 600));
-      showToast(isFinal ? 'Demo Mode — Review submitted (not persisted)' : 'Demo Mode — Draft saved (not persisted)', 'success');
-      setSaving(false);
-      return true;
-    }
 
     try {
       const timestamp = new Date().toISOString();
@@ -64,14 +56,6 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
   };
 
   const adminOverrideReview = async (employeeId: string, updatedData: MidYearCheckin, reason: string, user: User | null) => {
-    if (IS_DEMO_MODE) {
-      setIsOverriding(true);
-      await new Promise(r => setTimeout(r, 600));
-      showToast('Demo Mode — Override applied (not persisted)', 'success');
-      setIsOverriding(false);
-      return true;
-    }
-
     if (!user) throw new Error('User must be authenticated for override.');
     if (!reason) throw new Error('Reason is required for override.');
 

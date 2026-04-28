@@ -14,7 +14,6 @@ import { Employee, ImportResult, ImportRow, ImportBucket } from '../types';
 import { User } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { IS_DEMO_MODE } from '../lib/demo-mode';
 
 const VALID_RATINGS = [
   'Exceptional Results',
@@ -263,17 +262,6 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
   const commitImport = async (rows: ImportRow[]) => {
     if (!user) return { success: false, written: 0, failed: 0 };
     
-    if (IS_DEMO_MODE) {
-      setIsCommitting(true);
-      for (let i = 0; i <= rows.length; i += Math.max(1, Math.floor(rows.length / 5))) {
-        setCommitProgress({ current: i, total: rows.length });
-        await new Promise(r => setTimeout(r, 200));
-      }
-      showToast(`Demo Mode — Simulated import of ${rows.length} records (not persisted)`, 'success');
-      setIsCommitting(false);
-      return { success: true, written: rows.length, failed: 0 };
-    }
-
     setIsCommitting(true);
     setCommitProgress({ current: 0, total: rows.length });
     let written = 0;

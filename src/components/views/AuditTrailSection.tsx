@@ -26,20 +26,12 @@ interface AuditTrailSectionProps {
   hideRating?: boolean;
 }
 
-import { IS_DEMO_MODE } from '../../lib/demo-mode';
-import { DEMO_AUDIT_ENTRIES } from '../../lib/demo-data';
-
 export const AuditTrailSection = ({ employeeId, initialExpanded = false, hideRating = false }: AuditTrailSectionProps) => {
   const [entries, setEntries] = useState<EmployeeAuditEntry[]>([]);
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (IS_DEMO_MODE) {
-      setEntries(DEMO_AUDIT_ENTRIES[employeeId] || []);
-      return;
-    }
-
     const q = query(
       collection(db, 'employee_audit'),
       where('employee_id', '==', employeeId),
