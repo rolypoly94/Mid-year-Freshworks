@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function email() {
+      return request.auth.token.get('email', '').lower();
+    }
+    
+    function isFreshworksEmployee() {
+      return isAuthenticated() && email().matches("^.+@freshworks\\.com$");
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/admins/$(email())) ||
+        email() == 'sumit.yadav@freshworks.com'
+      );
+    }
+    
+    function isOwner(employeeEmail) {
+      return isFreshworksEmployee() && email() == employeeEmail.lower();
+    }
+
+    function isValidMidYearCheckin(data, isSubmitted) {
+      return data is map &&
+             data.doing_well is string && (!isSubmitted || data.doing_well.size() > 0) &&
+             data.focus_to_grow is string && (!isSubmitted || data.focus_to_grow.size() > 0) &&
+             data.performance_trending_rating is string && (!isSubmitted || data.performance_trending_rating in ['Exceptional Results', 'Exceeds Results', 'Delivers Full Results', 'Delivers Some Results', 'Does Not Deliver Results']) &&
+             data.additional_notes is string;
+    }
+
+    function isValidEmployee(data) {
+      return data.employee_name is string && data.employee_name.size() > 0 &&
+             data.employee_email is string && data.employee_email.size() > 0 &&
+             data.manager_email is string && data.manager_email.size() > 0 &&
+             data.status in ['Pending', 'Draft', 'Submitted'] &&
+             (!('mid_year_checkin' in data) || isValidMidYearCheckin(data.mid_year_checkin, data.status == 'Submitted'));
+    }
+
+    function isValidAuditEntry(data) {
+      return data.employee_id is string &&
+             data.actor_email is string &&
+             data.actor_email == email() &&
+             data.timestamp is string &&
+             data.event_type in ['submit', 'acknowledge', 'admin_override'];
+    }
+
+    match /employees/{employeeId} {
+      // Admin can do anything
+      allow read, write: if isAdmin();
+      
+      // Access Control Logic
+      allow get: if isFreshworksEmployee() && (
+        isOwner(resource.data.employee_email) ||
+        resource.data.manager_email == email() ||
+        resource.data.get('hrbp_email', '') == email()
+      );
+
+      allow list: if isAdmin() || (isFreshworksEmployee() && (
+        resource.data.manager_email == email() ||
+        resource.data.get('hrbp_email', '') == email()
+      ));
+      
+      allow create: if isAdmin() || (isFreshworksEmployee() && 
+                    request.resource.data.manager_email == email() && 
+                    isValidEmployee(request.resource.data));
+                    
+      allow update: if isAdmin() || (isFreshworksEmployee() && (
+                    // Manager update - only if not already submitted
+                    (resource.data.manager_email == email() &&
+                     resource.data.status != 'Submitted' &&
+                     request.resource.data.manager_email == email() &&
+                     isValidEmployee(request.resource.data))
+                    ) || (
+                    // Employee acknowledgement
+                    isOwner(resource.data.employee_email) && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged_at'])
+                    ));
+                    
+      allow delete: if isAdmin();
+    }
+
+    match /import_audit/{auditId} {
+      allow create, read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /employee_audit/{auditId} {
+      allow read: if isAdmin() || (isFreshworksEmployee() && email() == resource.data.employee_id);
+      allow create: if isFreshworksEmployee() && (isValidAuditEntry(request.resource.data) || isAdmin());
+      allow update, delete: if false;
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAuthenticated() && (email() == adminId.lower() || isAdmin());
+      allow create: if isAdmin();
+      allow delete: if isAdmin() && email() != adminId.lower();
+      allow update: if false;
+    }
+  }
+}

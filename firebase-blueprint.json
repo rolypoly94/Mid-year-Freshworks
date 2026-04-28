@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "MidYearCheckin": {
+      "title": "MidYearCheckin",
+      "description": "Simplified mid-year performance feedback data.",
+      "type": "object",
+      "properties": {
+        "feedback": { "type": "string" },
+        "top_2_wins": { "type": "string" },
+        "area_for_growth": { "type": "string" },
+        "overall_trajectory": { 
+          "type": "string", 
+          "enum": ["DNDR", "DSR", "DFR", "EXCDS", "EXCPNL"] 
+        },
+        "submitted_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["feedback", "top_2_wins", "area_for_growth", "overall_trajectory"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "An employee record with comprehensive HR data and performance feedback.",
+      "type": "object",
+      "properties": {
+        "employee_id": { "type": "string" },
+        "legacy_id": { "type": "string" },
+        "first_name": { "type": "string" },
+        "middle_name": { "type": "string" },
+        "last_name": { "type": "string" },
+        "legal_name": { "type": "string" },
+        "gender": { "type": "string" },
+        "employee_name": { "type": "string" },
+        "employee_email": { "type": "string", "format": "email" },
+        "hire_date": { "type": "string" },
+        "last_promotion_date": { "type": "string" },
+        "tenure_in_freshworks": { "type": "string" },
+        "tenure_in_position": { "type": "string" },
+        "tenure_in_job_profile": { "type": "string" },
+        "termination_date": { "type": "string" },
+        "num_direct_reports": { "type": "number" },
+        "compa_ratio": { "type": "number" },
+        "worker_status": { "type": "string" },
+        "worker_type": { "type": "string" },
+        "worker_subtype": { "type": "string" },
+        "manager_name": { "type": "string" },
+        "manager_email": { "type": "string", "format": "email" },
+        "hrbp": { "type": "string" },
+        "hrbp_email": { "type": "string", "format": "email" },
+        "job_title": { "type": "string" },
+        "job_family": { "type": "string" },
+        "job_family_group": { "type": "string" },
+        "work_location": { "type": "string" },
+        "grade": { "type": "string" },
+        "work_address_country": { "type": "string" },
+        "cost_center_id": { "type": "string" },
+        "cost_center": { "type": "string" },
+        "cost_center_hierarchy": { "type": "string" },
+        "c_suite_exec": { "type": "string" },
+        "c_suite_exec_level_down": { "type": "string" },
+        "management_chain_l6": { "type": "string" },
+        "management_chain_l7": { "type": "string" },
+        "management_chain_l8": { "type": "string" },
+        "management_chain_l9": { "type": "string" },
+        "management_chain_l10": { "type": "string" },
+        "rating_2024": { "type": "string" },
+        "rating_2025": { "type": "string" },
+        "mid_year_checkin": { "$ref": "MidYearCheckin" },
+        "status": { "type": "string", "enum": ["Pending", "Draft", "Submitted"] },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employee_name", "employee_email", "manager_email", "status"]
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of employee records for feedback."
+    }
+  }
+}
