@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { LogOut, Target, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -10,7 +10,7 @@ import { usePerformanceActions } from './hooks/usePerformanceActions';
 import { useImportExport } from './hooks/useImportExport';
 import { seedMockData } from './lib/mock-data';
 import { cn } from './lib/utils';
-import { Employee, MidYearCheckin } from './types';
+import { Employee } from './types';
 
 // UI Components
 import { Button } from './components/ui/Button';
@@ -25,25 +25,29 @@ const App = () => {
   // --- Auth & State ---
   const { user, isAdmin, isAdminLoaded, isAuthReady, login, logout } = useAuth();
   const [proxyEmail, setProxyEmail] = useState<string | null>(null);
-  const { 
-    employees, 
-    managerEmployees, 
-    hrbpEmployees, 
-    currentUserEmployee, 
-    isHRBP, 
-    isLoading,
-  } = usePerformanceData(user, isAdmin, proxyEmail);
-
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'manager' | 'admin' | 'employee' | 'hrbp' | 'analytics'>('manager');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
-    setTimeout(() => setToast(null), 5000);
-  };
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }, []);
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
+
+  const {
+    employees,
+    managerEmployees,
+    hrbpEmployees,
+    currentUserEmployee,
+    isHRBP,
+    isLoading,
+    refreshAdminEmployees,
+  } = usePerformanceData(user, isAdmin, proxyEmail, showToast);
 
   const { 
     isSaving, 
@@ -63,69 +67,8 @@ const App = () => {
     handleDownloadReport 
   } = useImportExport(user, showToast);
 
-  // --- Feedback Form State ---
-  const [midYearData, setMidYearData] = useState<MidYearCheckin>({
-    key_contributions: '',
-    development_evolution: '',
-    leadership_mastery: '',
-    performance_trending_rating: '',
-    promotion_readiness: null,
-    additional_notes: '',
-    great_reflections: []
-  });
-
-  const [activeEmployeeId, setActiveEmployeeId] = useState<string | null>(null);
-
-  const selectedEmployee = useMemo(() => 
-    employees.find(e => e.id === selectedEmployeeId), 
-    [employees, selectedEmployeeId]
-  );
-
-  useEffect(() => {
-    if (selectedEmployeeId !== activeEmployeeId) {
-      setActiveEmployeeId(selectedEmployeeId);
-      if (selectedEmployee?.mid_year_checkin) {
-        setMidYearData({
-          key_contributions: selectedEmployee.mid_year_checkin.key_contributions || '',
-          development_evolution: selectedEmployee.mid_year_checkin.development_evolution || '',
-          leadership_mastery: selectedEmployee.mid_year_checkin.leadership_mastery || '',
-          performance_trending_rating: selectedEmployee.mid_year_checkin.performance_trending_rating || '',
-          promotion_readiness: selectedEmployee.mid_year_checkin.promotion_readiness || null,
-          additional_notes: selectedEmployee.mid_year_checkin.additional_notes || '',
-          great_reflections: selectedEmployee.mid_year_checkin.great_reflections || []
-        });
-      } else {
-        setMidYearData({ 
-          key_contributions: '', 
-          development_evolution: '', 
-          leadership_mastery: '',
-          performance_trending_rating: '', 
-          promotion_readiness: null,
-          additional_notes: '',
-          great_reflections: [] 
-        });
-      }
-    }
-  }, [selectedEmployee, selectedEmployeeId, activeEmployeeId]);
-
-  const isFormValid = useMemo(() => 
-    midYearData.key_contributions.trim() !== '' &&
-    midYearData.development_evolution.trim() !== '' &&
-    midYearData.leadership_mastery?.trim() !== '' &&
-    midYearData.performance_trending_rating !== '', 
-    [midYearData]
-  );
-
-  const isDraftValid = useMemo(() => 
-    midYearData.key_contributions.trim() !== '' ||
-    midYearData.development_evolution.trim() !== '' ||
-    midYearData.leadership_mastery?.trim() !== '' ||
-    midYearData.performance_trending_rating !== '' ||
-    midYearData.promotion_readiness !== null ||
-    midYearData.additional_notes?.trim() !== '' ||
-    (midYearData.great_reflections?.some(r => r.response.trim() !== '' || r.not_applicable)),
-    [midYearData]
-  );
+  // Form state lives inside MidYearForm now so that typing doesn't re-render the
+  // entire app on every keystroke. App only passes the initial values.
 
   // --- Handlers ---
   const handleSeed = async () => {
@@ -244,7 +187,7 @@ const App = () => {
             <div className="flex bg-gray-100/80 p-1.5 rounded-2xl gap-1">
               {isAdmin && isAdminLoaded && (
                 <button
-                  onClick={() => setViewMode('admin')}
+                  onClick={() => { setViewMode('admin'); refreshAdminEmployees(); }}
                   className={cn(
                     "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
                     viewMode === 'admin' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
@@ -371,45 +314,34 @@ const App = () => {
             <CalibrationChart employees={managerEmployees} scopeLabel="Your team" />
           </div>
         ) : (
-          <ManagerView 
+          <ManagerView
             employees={managerEmployees}
             selectedEmployeeId={selectedEmployeeId}
             onSelectEmployee={setSelectedEmployeeId}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            midYearData={midYearData}
-            setMidYearData={setMidYearData}
-            handleSave={(status) => {
+            onSave={(data, status) => {
               if (!selectedEmployeeId) return;
-              if (status === 'Submitted' && !isFormValid) {
-                showToast('Please fill in all required fields (Contributions, Development, Leadership, and Rating) before submitting.', 'error');
-                return;
-              }
-              saveFeedback(selectedEmployeeId, midYearData, status, user);
+              saveFeedback(selectedEmployeeId, data, status, user);
             }}
-            handleShare={() => {
+            onShare={() => {
               if (!selectedEmployeeId) return;
               shareReview(selectedEmployeeId, user);
             }}
-            handleSaveDraft={() => {
+            onSaveDraft={(data) => {
               if (!selectedEmployeeId) return;
-              if (!isDraftValid) {
-                showToast('Please enter at least one field before saving a draft.', 'info');
-                return;
-              }
-              saveFeedback(selectedEmployeeId, midYearData, 'Draft', user);
+              saveFeedback(selectedEmployeeId, data, 'Draft', user);
             }}
             isSaving={isSaving}
             isSavingDraft={isSavingDraft}
             isSharing={isSharing}
-            isFormValid={isFormValid}
-            isDraftValid={isDraftValid}
             onSeedData={handleSeed}
             isSeeding={isSeeding}
             isAdmin={isAdmin}
             onAdminOverride={adminOverrideReview}
             isOverriding={isOverriding}
             user={user}
+            showToast={showToast}
           />
         )}
       </main>
