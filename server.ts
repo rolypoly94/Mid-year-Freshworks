@@ -76,9 +76,45 @@ async function startServer() {
     }
   }
 
+  // --- Auth middleware ---
+  // Verifies a Firebase ID token (passed as `Authorization: Bearer <token>`).
+  // Used to gate API routes that should not be open to the public internet.
+  const requireAuth = async (req: any, res: any, next: any) => {
+    const header = req.headers.authorization || '';
+    const match = header.match(/^Bearer (.+)$/);
+    if (!match) return res.status(401).json({ error: 'Missing Authorization header' });
+    if (admin.apps.length === 0) {
+      return res.status(503).json({ error: 'Auth service not available' });
+    }
+    try {
+      const decoded = await admin.auth().verifyIdToken(match[1]);
+      const email = decoded.email?.toLowerCase();
+      if (!email || !email.endsWith('@freshworks.com')) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      req.userEmail = email;
+      next();
+    } catch (err) {
+      console.error('Auth verification failed:', err);
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  };
+
+  const requireAdmin = async (req: any, res: any, next: any) => {
+    if (!db) return res.status(503).json({ error: 'Database service not available' });
+    try {
+      const adminDoc = await db.collection('admins').doc(req.userEmail).get();
+      if (!adminDoc.exists) return res.status(403).json({ error: 'Admin access required' });
+      next();
+    } catch (err) {
+      console.error('Admin check failed:', err);
+      return res.status(500).json({ error: 'Admin check failed' });
+    }
+  };
+
   // --- Gemini AI Routes ---
 
-  app.post('/api/gemini/refine-feedback', async (req, res) => {
+  app.post('/api/gemini/refine-feedback', requireAuth, async (req, res) => {
     const { feedback, context } = req.body;
     if (!feedback) return res.status(400).json({ error: 'Feedback text is required' });
 
@@ -129,9 +165,23 @@ async function startServer() {
 
   // --- Admin API Routes ---
 
-  app.post('/api/admin/reminders', async (req, res) => {
+  // Short-lived cache for the pending-employees scan so repeat clicks
+  // within ~60s don't re-scan the collection.
+  let remindersCache: { at: number; emailedTo: string[] } | null = null;
+  const REMINDERS_CACHE_TTL_MS = 60_000;
+
+  app.post('/api/admin/reminders', requireAuth, requireAdmin, async (req, res) => {
     if (!db) return res.status(503).json({ error: 'Database service not available' });
     try {
+      const now = Date.now();
+      if (remindersCache && now - remindersCache.at < REMINDERS_CACHE_TTL_MS) {
+        return res.json({
+          message: `Reminders already sent in the last minute to ${remindersCache.emailedTo.length} managers.`,
+          emailedTo: remindersCache.emailedTo,
+          cached: true,
+        });
+      }
+
       const pendingEmployeesSnapshot = await db.collection('employees')
         .where('status', '==', 'Pending')
         .get();
@@ -151,9 +201,11 @@ async function startServer() {
       emailedManagers.forEach(email => console.log(`Sending reminder to: ${email}`));
       console.log('-----------------------------');
 
-      res.json({ 
+      remindersCache = { at: now, emailedTo: emailedManagers };
+
+      res.json({
         message: `Success! Reminders sent to ${emailedManagers.length} managers.`,
-        emailedTo: emailedManagers
+        emailedTo: emailedManagers,
       });
     } catch (error) {
       console.error('Admin API Error:', error);

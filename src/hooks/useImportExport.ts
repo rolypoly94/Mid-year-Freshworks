@@ -12,8 +12,9 @@ import {
 import { db } from '../firebase';
 import { Employee, ImportResult, ImportRow, ImportBucket } from '../types';
 import { User } from 'firebase/auth';
-import * as XLSX from 'xlsx';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import XlsxParserWorker from '../workers/xlsx-parser.worker?worker';
+import type { XlsxParseResult } from '../workers/xlsx-parser.worker';
 
 const VALID_RATINGS = [
   'Exceptional Results',
@@ -69,23 +70,34 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
       reader.onload = async (e) => {
         try {
           const arrayBuffer = e.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+          // Parse xlsx off the main thread so the UI doesn't freeze on big files.
+          const parsed = await new Promise<XlsxParseResult>((resolveWorker, rejectWorker) => {
+            const worker = new XlsxParserWorker();
+            type ParseMessage =
+              | { ok: true; result: XlsxParseResult }
+              | { ok: false; error: string };
+            worker.onmessage = (msg: MessageEvent<ParseMessage>) => {
+              worker.terminate();
+              const data = msg.data;
+              if (data.ok === true) resolveWorker(data.result);
+              else rejectWorker(new Error(data.error));
+            };
+            worker.onerror = (err) => {
+              worker.terminate();
+              rejectWorker(err);
+            };
+            worker.postMessage(arrayBuffer, [arrayBuffer]);
+          });
+
           let allRows: Record<string, unknown>[] = [];
           const warnings: string[] = [];
-
-          // Read all sheets
-          workbook.SheetNames.forEach(name => {
-            const sheet = workbook.Sheets[name];
-            const json = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
-            if (json.length > 0) {
-              // Check if sheet has at least one expected header
-              const headers = Object.keys(json[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-              const validHeaders = ['email', 'employeename', 'emailprimarywork', 'employeeemail', 'manageremail', 'manager'];
-              if (headers.some(h => validHeaders.includes(h))) {
-                allRows = [...allRows, ...json];
-              } else {
-                warnings.push(`Skipped sheet "${name}": No matching headers found.`);
-              }
+          parsed.sheets.forEach(sheet => {
+            if (sheet.rows.length === 0) return;
+            if (sheet.hasMatchingHeaders) {
+              allRows = allRows.concat(sheet.rows);
+            } else {
+              warnings.push(`Skipped sheet "${sheet.name}": No matching headers found.`);
             }
           });
 
@@ -261,7 +273,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
 
   const commitImport = async (rows: ImportRow[]) => {
     if (!user) return { success: false, written: 0, failed: 0 };
-    
+
     setIsCommitting(true);
     setCommitProgress({ current: 0, total: rows.length });
     let written = 0;
@@ -269,40 +281,60 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     const errors: string[] = [];
 
     const BATCH_SIZE = 100;
-    
-    try {
-      // 1. Optional Backup before write (Simplified: we'll skip for now but add audit log)
-      
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        setCommitProgress({ current: i, total: rows.length });
-        const batch = writeBatch(db);
-        const chunk = rows.slice(i, i + BATCH_SIZE);
+    const CONCURRENCY = 5;
 
+    // Throttle progress updates so we don't trigger a re-render per batch.
+    let lastProgressEmit = 0;
+    const reportProgress = (current: number, force = false) => {
+      const now = Date.now();
+      if (force || now - lastProgressEmit > 200) {
+        lastProgressEmit = now;
+        setCommitProgress({ current, total: rows.length });
+      }
+    };
+
+    try {
+      const batches: ImportRow[][] = [];
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        batches.push(rows.slice(i, i + BATCH_SIZE));
+      }
+
+      const commitBatch = async (chunk: ImportRow[], batchIndex: number) => {
+        const batch = writeBatch(db);
         chunk.forEach(row => {
           const docRef = doc(db, 'employees', row.employee.id);
-          
           if (row.bucket === 'new') {
             batch.set(docRef, row.employee);
           } else {
-            // profile_update_safe or profile_update_preserve
-            // We MUST NOT overwrite status or mid_year_checkin
             const profileData: any = { ...row.employee };
             delete profileData.status;
             delete profileData.mid_year_checkin;
             delete profileData.id;
-            
             batch.set(docRef, profileData, { merge: true });
           }
         });
-
         try {
           await batch.commit();
           written += chunk.length;
         } catch (err) {
           failed += chunk.length;
-          errors.push(`Batch ${i/BATCH_SIZE + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+          errors.push(`Batch ${batchIndex + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          reportProgress(written + failed);
         }
-      }
+      };
+
+      // Run batches with a small concurrency cap so big imports don't take
+      // forever waiting one-at-a-time, but we don't blast Firestore either.
+      let next = 0;
+      const runWorker = async () => {
+        while (next < batches.length) {
+          const i = next++;
+          await commitBatch(batches[i], i);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batches.length) }, runWorker));
+      reportProgress(rows.length, true);
 
       // 2. Audit Log - Separated try/catch
       try {
@@ -332,7 +364,8 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     }
   };
 
-  const handleDownloadReport = (data: Employee[], filename: string) => {
+  const handleDownloadReport = async (data: Employee[], filename: string) => {
+    const XLSX = await import('xlsx');
     const formatDateStr = (isoString?: string) => {
       if (!isoString) return '';
       try {
