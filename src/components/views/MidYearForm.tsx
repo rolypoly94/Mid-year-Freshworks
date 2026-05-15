@@ -70,8 +70,33 @@ export const MidYearForm = ({
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = React.useState(false);
   const [isBehaviorsExpanded, setIsBehaviorsExpanded] = React.useState(false);
+  const [refiningField, setRefiningField] = React.useState<string | null>(null);
+
   const isFinalized = ['Submitted', 'Shared', 'Acknowledged'].includes(employee.status);
   const isShared = ['Shared', 'Acknowledged'].includes(employee.status);
+
+  const handleRefine = async (fieldName: keyof MidYearCheckin, context: string) => {
+    const text = midYearData[fieldName] as string;
+    if (!text || text.trim().length < 5) return;
+
+    setRefiningField(fieldName);
+    try {
+      const response = await fetch('/api/gemini/refine-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: text, context })
+      });
+      
+      const data = await response.json();
+      if (data.refinedText) {
+        setMidYearData(prev => ({ ...prev, [fieldName]: data.refinedText }));
+      }
+    } catch (error) {
+      console.error('Refinement failed:', error);
+    } finally {
+      setRefiningField(null);
+    }
+  };
 
   // GREAT Level logic
   const levelKey = React.useMemo(() => getLevelForGrade(employee.grade), [employee.grade]);
@@ -333,9 +358,21 @@ export const MidYearForm = ({
               <h4 className="font-bold text-[14px] text-[var(--color-apple-black)]">Key Contributions</h4>
             </div>
             <div className="pl-9 space-y-4">
-              <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
-                Quantify this individual's top contributions in H1 and detail their direct impact on team-wide business objectives.
-              </p>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
+                  Quantify this individual's top contributions in H1 and detail their direct impact on team-wide business objectives.
+                </p>
+                {!isShared && (
+                  <button
+                    onClick={() => handleRefine('key_contributions', 'Key contributions and business impact')}
+                    disabled={refiningField === 'key_contributions' || !midYearData.key_contributions || midYearData.key_contributions.length < 5}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[11px] font-bold hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    {refiningField === 'key_contributions' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    Refine with AI
+                  </button>
+                )}
+              </div>
               <div className="relative group">
                 <textarea
                   className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
@@ -357,9 +394,21 @@ export const MidYearForm = ({
               <h4 className="font-bold text-[14px] text-[var(--color-apple-black)]">Development & Evolution</h4>
             </div>
             <div className="pl-9 space-y-4">
-              <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
-                Reflecting on H1 performance, what specific actions or mindset shifts should this individual adopt to sharpen their execution and efficiency in H2?
-              </p>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
+                  Reflecting on H1 performance, what specific actions or mindset shifts should this individual adopt to sharpen their execution and efficiency in H2?
+                </p>
+                {!isShared && (
+                  <button
+                    onClick={() => handleRefine('development_evolution', 'Future development and mindset shifts')}
+                    disabled={refiningField === 'development_evolution' || !midYearData.development_evolution || midYearData.development_evolution.length < 5}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[11px] font-bold hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    {refiningField === 'development_evolution' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    Refine with AI
+                  </button>
+                )}
+              </div>
               <div className="relative group">
                 <textarea
                   className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
@@ -381,9 +430,21 @@ export const MidYearForm = ({
               <h4 className="font-bold text-[14px] text-[var(--color-apple-black)]">Leadership Mastery</h4>
             </div>
             <div className="pl-9 space-y-4">
-              <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
-                What are this person's strongest leadership behaviors, drawing on the GREAT framework, and what specific areas need focused development to amplify their impact?
-              </p>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
+                  What are this person's strongest leadership behaviors, drawing on the GREAT framework, and what specific areas need focused development to amplify their impact?
+                </p>
+                {!isShared && (
+                  <button
+                    onClick={() => handleRefine('leadership_mastery', 'Leadership behaviors and GREAT framework alignment')}
+                    disabled={refiningField === 'leadership_mastery' || !midYearData.leadership_mastery || midYearData.leadership_mastery.length < 5}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[11px] font-bold hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    {refiningField === 'leadership_mastery' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    Refine with AI
+                  </button>
+                )}
+              </div>
               
               {behaviors && (
                 <button

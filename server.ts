@@ -6,9 +6,24 @@ import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
+import { GoogleGenAI } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Gemini
+if (!process.env.GEMINI_API_KEY) {
+  console.warn('GEMINI_API_KEY is not set in environment variables. Gemini AI features may fail.');
+}
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY || '',
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 // Load Firebase config
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -41,6 +56,62 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Health check endpoint
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // --- Gemini AI Routes ---
+
+  app.post('/api/gemini/refine-feedback', async (req, res) => {
+    const { feedback, context } = req.body;
+
+    if (!feedback) {
+      return res.status(400).json({ error: 'Feedback text is required' });
+    }
+
+    try {
+      const prompt = `
+        You are an expert HR coach specializing in performance feedback.
+        Refine the following performance feedback to be more professional, constructive, and actionable.
+        
+        CONTEXT: ${context || 'General performance feedback'}
+        
+        FEEDBACK TO REFINE:
+        "${feedback}"
+        
+        GUIDELINES:
+        1. Keep the original intent and key points.
+        2. Use professional language typical of high-performing tech companies.
+        3. Make it constructive (focus on growth) even if critical.
+        4. Be concise but specific.
+        5. Use bullet points if multiple points are raised.
+        6. If the input is very short, expand it into a well-structured paragraph or list.
+        
+        Return ONLY the refined text. No preamble, no greetings.
+      `;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+
+      const refinedText = result.text;
+      res.json({ refinedText });
+    } catch (error: any) {
+      console.error('Gemini Error:', error);
+      
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('API_KEY_INVALID')) {
+        return res.status(403).json({ 
+          error: 'Gemini API Permission Denied. Please check your API key in the Settings > Secrets panel.' 
+        });
+      }
+      
+      res.status(500).json({ error: 'Failed to refine feedback using AI' });
+    }
+  });
 
   // --- Admin API Routes ---
 
