@@ -165,7 +165,7 @@ const App = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-[2.5rem] shadow-2xl shadow-blue-200 mb-8 animate-bounce">
             <Target className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Fresh Performance <span className="text-blue-600">Impact</span></h1>
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Mid-Year Performance <span className="text-blue-600">Impact Portal</span></h1>
           <p className="text-gray-500 text-lg font-medium leading-relaxed">The high-velocity performance system for Freshworks managers.</p>
           <Button onClick={login} size="xl" className="w-full">Sign in with Google</Button>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Restricted to @freshworks.com</p>
@@ -189,7 +189,7 @@ const App = () => {
                 <Target className="w-5 h-5 text-white" />
               </div>
               <span className="ml-3 text-xl font-extrabold text-gray-900 tracking-tight hidden sm:block">
-                FPI <span className="text-blue-600">Portal</span>
+                Mid-Year <span className="text-blue-600">Impact</span>
               </span>
             </div>
             

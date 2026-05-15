@@ -1,6 +1,6 @@
 {
-  "name": "Mid-Year Performance Feedback Portal",
-  "description": "A high-performance talent management portal for managers and HRBPs to execute mid-year performance calibration, featuring AI-assisted feedback refinement and organizational progress tracking.",
+  "name": "Mid-Year Performance Impact Portal",
+  "description": "A lightweight web app for managers to run mid-year check-ins with their direct reports, built specifically for the Freshworks performance cycle. Features AI-assisted feedback refinement, GREAT framework alignment, and HRBP org-wide rollout tracking.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
