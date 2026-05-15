@@ -11,44 +11,25 @@ import { GoogleGenAI } from "@google/genai";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Gemini
-if (!process.env.GEMINI_API_KEY) {
-  console.warn('GEMINI_API_KEY is not set in environment variables. Gemini AI features may fail.');
-}
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Initialize Gemini Client Lazily
+let genAI: GoogleGenAI | null = null;
+function getGeminiClient() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn('GEMINI_API_KEY is not set. AI features will be disabled.');
+      return null;
     }
+    genAI = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
-
-// Load Firebase config
-const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
-const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
-
-// Initialize Firebase Admin
-let db: any;
-
-try {
-  console.log('Initializing Firebase Admin with project ID:', firebaseConfig.projectId);
-  // Initialize with projectId from config to ensure we target the correct project
-  const adminApp = admin.apps.length === 0 
-    ? admin.initializeApp({ projectId: firebaseConfig.projectId }) 
-    : admin.app();
-  
-  // Use the specific database ID from config
-  const rawDbId = firebaseConfig.firestoreDatabaseId;
-  const dbId = (rawDbId && typeof rawDbId === 'string' && rawDbId.trim() !== '') 
-    ? rawDbId.trim() 
-    : '(default)';
-  db = getFirestore(adminApp, dbId);
-  console.log(`Firestore initialized for database: ${dbId}`);
-} catch (error) {
-  console.error('Firestore initialization failed:', error);
-  process.exit(1);
+  return genAI;
 }
 
 async function startServer() {
@@ -57,18 +38,57 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Health check endpoint
+  // Health check endpoint - respond immediately
   app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV 
+    });
   });
+
+  // Load Firebase config gracefully
+  let firebaseConfig: any = {};
+  try {
+    const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(firebaseConfigPath)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
+    } else {
+       console.warn('firebase-applet-config.json not found');
+    }
+  } catch (err) {
+    console.error('Error loading firebase config:', err);
+  }
+
+  // Initialize Firebase Admin
+  let db: any;
+  if (firebaseConfig.projectId) {
+    try {
+      console.log('Initializing Firebase Admin with project ID:', firebaseConfig.projectId);
+      const adminApp = admin.apps.length === 0 
+        ? admin.initializeApp({ projectId: firebaseConfig.projectId }) 
+        : admin.app();
+      
+      const rawDbId = firebaseConfig.firestoreDatabaseId;
+      const dbId = (rawDbId && typeof rawDbId === 'string' && rawDbId.trim() !== '') 
+        ? rawDbId.trim() 
+        : '(default)';
+      db = getFirestore(adminApp, dbId);
+      console.log(`Firestore initialized for database: ${dbId}`);
+    } catch (error) {
+      console.error('Firestore initialization failed:', error);
+    }
+  }
 
   // --- Gemini AI Routes ---
 
   app.post('/api/gemini/refine-feedback', async (req, res) => {
     const { feedback, context } = req.body;
+    if (!feedback) return res.status(400).json({ error: 'Feedback text is required' });
 
-    if (!feedback) {
-      return res.status(400).json({ error: 'Feedback text is required' });
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(503).json({ error: 'AI service is temporarily unavailable (check API key configuration).' });
     }
 
     try {
@@ -101,24 +121,21 @@ async function startServer() {
       res.json({ refinedText });
     } catch (error: any) {
       console.error('Gemini Error:', error);
-      
       const errorMessage = error?.message || '';
       if (errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('API_KEY_INVALID')) {
         return res.status(403).json({ 
           error: 'Gemini API Permission Denied. Please check your API key in the Settings > Secrets panel.' 
         });
       }
-      
       res.status(500).json({ error: 'Failed to refine feedback using AI' });
     }
   });
 
   // --- Admin API Routes ---
 
-  // Batch Email Reminders logic
   app.post('/api/admin/reminders', async (req, res) => {
+    if (!db) return res.status(503).json({ error: 'Database service not available' });
     try {
-      // 1. Get all employees with 'Pending' status
       const pendingEmployeesSnapshot = await db.collection('employees')
         .where('status', '==', 'Pending')
         .get();
@@ -127,21 +144,15 @@ async function startServer() {
         return res.json({ message: 'No pending reports found. No emails sent.' });
       }
 
-      // 2. Group by manager_email
       const managersToEmail = new Set<string>();
-      pendingEmployeesSnapshot.forEach(doc => {
+      pendingEmployeesSnapshot.forEach((doc: any) => {
         const data = doc.data();
-        if (data.manager_email) {
-          managersToEmail.add(data.manager_email);
-        }
+        if (data.manager_email) managersToEmail.add(data.manager_email);
       });
 
-      // 3. "Send" emails (logging to console for this demo)
       const emailedManagers = Array.from(managersToEmail);
       console.log('--- BATCH EMAIL REMINDERS ---');
-      emailedManagers.forEach(email => {
-        console.log(`Sending reminder to: ${email}`);
-      });
+      emailedManagers.forEach(email => console.log(`Sending reminder to: ${email}`));
       console.log('-----------------------------');
 
       res.json({ 
