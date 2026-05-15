@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase';
 import { Employee, ImportResult, ImportRow, ImportBucket } from '../types';
 import { User } from 'firebase/auth';
+import * as XLSX from 'xlsx';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 const VALID_RATINGS = [
@@ -68,7 +69,6 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
       reader.onload = async (e) => {
         try {
           const arrayBuffer = e.target?.result as ArrayBuffer;
-          const XLSX = await import('xlsx');
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
           let allRows: Record<string, unknown>[] = [];
           const warnings: string[] = [];
@@ -332,8 +332,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     }
   };
 
-  const handleDownloadReport = async (data: Employee[], filename: string) => {
-    const XLSX = await import('xlsx');
+  const handleDownloadReport = (data: Employee[], filename: string) => {
     const formatDateStr = (isoString?: string) => {
       if (!isoString) return '';
       try {
