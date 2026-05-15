@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { LogOut, Target, X } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 // Hooks & Services
 import { useAuth } from './hooks/useAuth';
@@ -15,11 +14,19 @@ import { Employee, MidYearCheckin } from './types';
 // UI Components
 import { Button } from './components/ui/Button';
 import { Toast } from './components/ui/Toast';
-import { AdminView } from './components/views/AdminView';
+// ManagerView is the default landing view, so keep it eager
 import { ManagerView } from './components/views/ManagerView';
-import { HRBPView } from './components/views/HRBPView';
-import { EmployeeView } from './components/views/EmployeeView';
-import { CalibrationChart } from './components/charts/CalibrationChart';
+// Other views are loaded on demand to keep the initial bundle small
+const AdminView = lazy(() => import('./components/views/AdminView').then(m => ({ default: m.AdminView })));
+const HRBPView = lazy(() => import('./components/views/HRBPView').then(m => ({ default: m.HRBPView })));
+const EmployeeView = lazy(() => import('./components/views/EmployeeView').then(m => ({ default: m.EmployeeView })));
+const CalibrationChart = lazy(() => import('./components/charts/CalibrationChart').then(m => ({ default: m.CalibrationChart })));
+
+const ViewFallback = () => (
+  <div className="flex items-center justify-center py-24">
+    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => {
   // --- Auth & State ---
@@ -141,8 +148,9 @@ const App = () => {
     }
   };
 
-  const downloadTemplate = () => {
-    const templateData = [{ 
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const templateData = [{
       'Employee ID': 'FW1024',
       'First Name': 'Jane',
       'Last Name': 'Smith',
@@ -322,6 +330,7 @@ const App = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Suspense fallback={<ViewFallback />}>
         {viewMode === 'admin' && isAdmin ? (
           <AdminView 
             employees={employees}
@@ -412,6 +421,7 @@ const App = () => {
             user={user}
           />
         )}
+        </Suspense>
       </main>
     </div>
   );
