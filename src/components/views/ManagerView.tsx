@@ -21,46 +21,40 @@ interface ManagerViewProps {
   onSelectEmployee: (id: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  midYearData: MidYearCheckin;
-  setMidYearData: React.Dispatch<React.SetStateAction<MidYearCheckin>>;
-  handleSave: (status: 'Draft' | 'Submitted') => void;
-  handleShare: () => void;
-  handleSaveDraft: () => void;
+  onSave: (data: MidYearCheckin, status: 'Draft' | 'Submitted') => void;
+  onShare: () => void;
+  onSaveDraft: (data: MidYearCheckin) => void;
   isSaving: boolean;
   isSavingDraft: boolean;
   isSharing: boolean;
-  isFormValid: boolean;
-  isDraftValid: boolean;
   onSeedData: () => void;
   isSeeding: boolean;
   isAdmin?: boolean;
   onAdminOverride?: (employeeId: string, data: MidYearCheckin, reason: string, user: User | null) => Promise<boolean>;
   isOverriding?: boolean;
   user?: User | null;
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const ManagerView = ({
+export const ManagerView = React.memo(({
   employees,
   selectedEmployeeId,
   onSelectEmployee,
   searchQuery,
   onSearchChange,
-  midYearData,
-  setMidYearData,
-  handleSave,
-  handleShare,
-  handleSaveDraft,
+  onSave,
+  onShare,
+  onSaveDraft,
   isSaving,
   isSavingDraft,
   isSharing,
-  isFormValid,
-  isDraftValid,
   onSeedData,
   isSeeding,
   isAdmin,
   onAdminOverride,
   isOverriding,
-  user
+  user,
+  showToast,
 }: ManagerViewProps) => {
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
   const filteredEmployees = employees.filter(e => 
@@ -172,25 +166,22 @@ export const ManagerView = ({
             </p>
           </Card>
         ) : (
-          <MidYearForm 
+          <MidYearForm
             employee={selectedEmployee}
-            midYearData={midYearData}
-            setMidYearData={setMidYearData}
-            onSave={handleSave}
-            onShare={handleShare}
-            onSaveDraft={handleSaveDraft}
+            onSave={onSave}
+            onShare={onShare}
+            onSaveDraft={onSaveDraft}
             isSaving={isSaving}
             isSavingDraft={isSavingDraft}
             isSharing={isSharing}
-            isFormValid={isFormValid}
-            isDraftValid={isDraftValid}
             isAdmin={isAdmin}
             onAdminOverride={onAdminOverride}
             isOverriding={isOverriding}
             user={user}
+            showToast={showToast}
           />
         )}
       </div>
     </div>
   );
-};
+});
