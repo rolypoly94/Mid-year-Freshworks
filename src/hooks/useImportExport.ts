@@ -365,7 +365,16 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
   };
 
   const handleDownloadReport = async (data: Employee[], filename: string) => {
-    const XLSX = await import('xlsx');
+    try {
+      const XLSX = await import('xlsx');
+      await writeReport(XLSX, data, filename);
+    } catch (err) {
+      console.error('Report download failed:', err);
+      showToast('Failed to generate report.', 'error');
+    }
+  };
+
+  const writeReport = async (XLSX: typeof import('xlsx'), data: Employee[], filename: string) => {
     const formatDateStr = (isoString?: string) => {
       if (!isoString) return '';
       try {
@@ -414,7 +423,6 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     });
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
     XLSX.writeFile(workbook, `${filename}.xlsx`);
   };
