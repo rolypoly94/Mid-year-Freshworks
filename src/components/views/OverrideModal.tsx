@@ -22,9 +22,11 @@ export const OverrideModal = ({
   isLoading
 }: OverrideModalProps) => {
   const [formData, setFormData] = useState<MidYearCheckin>({
-    doing_well: employee.mid_year_checkin?.doing_well || '',
-    focus_to_grow: employee.mid_year_checkin?.focus_to_grow || '',
+    key_contributions: employee.mid_year_checkin?.key_contributions || '',
+    development_evolution: employee.mid_year_checkin?.development_evolution || '',
+    leadership_mastery: employee.mid_year_checkin?.leadership_mastery || '',
     performance_trending_rating: employee.mid_year_checkin?.performance_trending_rating || '',
+    promotion_readiness: employee.mid_year_checkin?.promotion_readiness || null,
     additional_notes: employee.mid_year_checkin?.additional_notes || '',
     great_reflections: employee.mid_year_checkin?.great_reflections || []
   });
@@ -60,8 +62,8 @@ export const OverrideModal = ({
   const [step, setStep] = useState<'edit' | 'confirm'>('edit');
 
   const isFormValid = 
-    formData.doing_well.trim() !== '' &&
-    formData.focus_to_grow.trim() !== '' &&
+    formData.key_contributions.trim() !== '' &&
+    formData.development_evolution.trim() !== '' &&
     formData.performance_trending_rating !== '' &&
     reason.trim() !== '';
 
@@ -122,19 +124,27 @@ export const OverrideModal = ({
 
                     <div className="space-y-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Wins & Impact</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Key Contributions</label>
                         <textarea
                           className="w-full h-32 p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all resize-none text-sm"
-                          value={formData.doing_well}
-                          onChange={(e) => setFormData(prev => ({ ...prev, doing_well: e.target.value }))}
+                          value={formData.key_contributions}
+                          onChange={(e) => setFormData(prev => ({ ...prev, key_contributions: e.target.value }))}
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Growth & Focus</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Development & Evolution</label>
                         <textarea
                           className="w-full h-32 p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all resize-none text-sm"
-                          value={formData.focus_to_grow}
-                          onChange={(e) => setFormData(prev => ({ ...prev, focus_to_grow: e.target.value }))}
+                          value={formData.development_evolution}
+                          onChange={(e) => setFormData(prev => ({ ...prev, development_evolution: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Leadership Mastery</label>
+                        <textarea
+                          className="w-full h-32 p-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all resize-none text-sm"
+                          value={formData.leadership_mastery}
+                          onChange={(e) => setFormData(prev => ({ ...prev, leadership_mastery: e.target.value }))}
                         />
                       </div>
                       {/* GREAT reflections correction */}

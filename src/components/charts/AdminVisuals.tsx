@@ -17,7 +17,7 @@ import { Card } from '../ui/Card';
 
 export const AdminVisuals = ({ employees }: { employees: Employee[] }) => {
   const completionData = useMemo(() => [
-    { name: 'Completed', value: employees.filter(e => e.status === 'Submitted').length },
+    { name: 'Feedback Recorded', value: employees.filter(e => e.status === 'Submitted').length },
     { name: 'Draft', value: employees.filter(e => e.status === 'Draft').length },
     { name: 'Pending', value: employees.filter(e => e.status === 'Pending').length },
   ], [employees]);

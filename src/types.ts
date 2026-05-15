@@ -1,4 +1,4 @@
-export type FeedbackStatus = 'Pending' | 'Draft' | 'Submitted';
+export type FeedbackStatus = 'Pending' | 'Draft' | 'Submitted' | 'Shared' | 'Acknowledged';
 
 export type ImportBucket = 'new' | 'profile_update_safe' | 'profile_update_preserve' | 'invalid' | 'duplicate';
 
@@ -43,12 +43,26 @@ export interface GreatReflection {
 }
 
 export interface MidYearCheckin {
-  doing_well: string;
-  focus_to_grow: string;
-  performance_trending_rating: string;
+  key_contributions: string;
+  development_evolution: string;
+  /** @deprecated use leadership_mastery for new reviews */
+  great_reflections?: GreatReflection[];
+  leadership_mastery?: string;
+  performance_trending_rating?: string; // Moved to private but kept in type for UI convenience
+  promotion_readiness?: 'ready_next_year_end' | 'ready_next_mid_year' | 'reassess_next_year' | null;
   additional_notes: string;
   submitted_at?: string;
-  great_reflections?: GreatReflection[];
+  shared_at?: string;
+  shared_by?: string;
+}
+
+export interface ManagerPrivateData {
+  performance_trending_rating: string;
+  promotion_readiness: 'ready_next_year_end' | 'ready_next_mid_year' | 'reassess_next_year' | null;
+  additional_notes?: string;
+  updated_at: string;
+  manager_email: string;
+  hrbp_email: string;
 }
 
 export interface Employee {
@@ -94,7 +108,7 @@ export interface EmployeeAuditEntry {
   employee_id: string;          // employee's email
   actor_email: string;          // who performed the action
   actor_name?: string | null;          // display name at time of action
-  event_type: 'submit' | 'acknowledge' | 'admin_override';
+  event_type: 'submit' | 'shared' | 'acknowledge' | 'admin_override';
   timestamp: string;            // ISO date
   snapshot?: MidYearCheckin;    // review content at time of event
   previous_snapshot?: MidYearCheckin;  // only for admin_override — state before the edit

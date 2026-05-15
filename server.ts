@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load Firebase config
-const firebaseConfigPath = path.join(__dirname, 'firebase-applet-config.json');
+const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
 
 // Initialize Firebase Admin

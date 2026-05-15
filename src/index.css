@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  --color-apple-blue: #0071E3;
+  --color-apple-gray: #86868B;
+  --color-apple-bg: #FBFBFB;
+  --color-apple-black: #1D1D1F;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-apple-bg)] text-[var(--color-apple-black)];
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}

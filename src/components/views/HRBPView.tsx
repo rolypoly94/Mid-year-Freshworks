@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Employee } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { BellCurveChart } from '../charts/BellCurveChart';
+import { CalibrationChart } from '../charts/CalibrationChart';
 import { cn } from '../../lib/utils';
 import { 
   Download, 
@@ -31,7 +31,7 @@ interface HRBPViewProps {
 export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
   const stats = useMemo(() => ({
     total: employees.length,
-    completed: employees.filter(e => e.status === 'Submitted').length,
+    completed: employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length,
     pending: employees.filter(e => e.status === 'Pending').length,
   }), [employees]);
 
@@ -51,7 +51,7 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
         statsMap[email] = { name: e.manager_name || 'N/A', email, total: 0, completed: 0, draft: 0, pending: 0 };
       }
       statsMap[email].total++;
-      if (e.status === 'Submitted') statsMap[email].completed++;
+      if (['Submitted', 'Shared', 'Acknowledged'].includes(e.status)) statsMap[email].completed++;
       else if (e.status === 'Draft') statsMap[email].draft++;
       else statsMap[email].pending++;
     });
@@ -66,9 +66,9 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
 
   const ratingDistributionByManager = useMemo(() => {
     const managersWithRatings: Record<string, any> = {};
-    const submittedEmployees = employees.filter(e => e.status === 'Submitted');
+    const calibrationEmployees = employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status));
 
-    submittedEmployees.forEach(e => {
+    calibrationEmployees.forEach(e => {
       const email = e.manager_email;
       const rating = e.mid_year_checkin?.performance_trending_rating;
       if (!rating) return;
@@ -162,7 +162,7 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
       {/* Bell Curve Chart */}
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-gray-900">Org-wide Rating Shape (HRBP Scope)</h2>
-        <BellCurveChart employees={employees} />
+        <CalibrationChart employees={employees} scopeLabel={`${employees[0]?.hrbp_name || 'HRBP'}'s Org`} />
       </div>
 
       {/* Completion by Manager Table */}
@@ -237,6 +237,74 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      {/* Employee Detail List */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-gray-900">Detailed Report List</h2>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
+                  <th className="px-6 py-4">Employee</th>
+                  <th className="px-6 py-4">Manager</th>
+                  <th className="px-6 py-4">Trending Rating</th>
+                  <th className="px-6 py-4">Calibration Notes</th>
+                  <th className="px-6 py-4">Readiness</th>
+                  <th className="px-6 py-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {employees.map(emp => (
+                  <tr key={emp.id} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-bold text-gray-900 leading-none mb-1">{emp.employee_name}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{emp.employee_id}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-gray-600 font-medium">{emp.manager_name}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        "font-bold",
+                        emp.mid_year_checkin?.performance_trending_rating ? "text-blue-600" : "text-gray-300"
+                      )}>
+                        {emp.mid_year_checkin?.performance_trending_rating || '—'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs">
+                      {emp.mid_year_checkin?.additional_notes ? (
+                        <p className="text-gray-500 italic line-clamp-1 max-w-[150px]" title={emp.mid_year_checkin.additional_notes}>
+                          {emp.mid_year_checkin.additional_notes}
+                        </p>
+                      ) : '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-gray-500 font-medium">
+                        {emp.mid_year_checkin?.promotion_readiness?.replace(/_/g, ' ') || '—'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        "px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase",
+                        emp.status === 'Acknowledged' ? "bg-emerald-50 text-emerald-700" :
+                        emp.status === 'Shared' ? "bg-blue-50 text-blue-700" :
+                        emp.status === 'Submitted' ? "bg-indigo-50 text-indigo-700" :
+                        emp.status === 'Draft' ? "bg-amber-50 text-amber-700" :
+                        "bg-gray-100 text-gray-400"
+                      )}>
+                        {emp.status === 'Submitted' ? 'Feedback Recorded' : emp.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

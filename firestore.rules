@@ -7,7 +7,7 @@ service cloud.firestore {
     }
     
     function email() {
-      return request.auth.token.get('email', '').lower();
+      return request.auth.token.get('email', request.auth.token.get('email_address', '')).lower();
     }
     
     function isFreshworksEmployee() {
@@ -16,8 +16,8 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && (
-        exists(/databases/$(database)/documents/admins/$(email())) ||
-        email() == 'sumit.yadav@freshworks.com'
+        email() == 'sumit.yadav@freshworks.com' ||
+        exists(/databases/$(database)/documents/admins/$(email()))
       );
     }
     
@@ -25,20 +25,30 @@ service cloud.firestore {
       return isFreshworksEmployee() && email() == employeeEmail.lower();
     }
 
-    function isValidMidYearCheckin(data, isSubmitted) {
+    function isValidMidYearCheckin(data, status) {
       return data is map &&
-             data.doing_well is string && (!isSubmitted || data.doing_well.size() > 0) &&
-             data.focus_to_grow is string && (!isSubmitted || data.focus_to_grow.size() > 0) &&
-             data.performance_trending_rating is string && (!isSubmitted || data.performance_trending_rating in ['Exceptional Results', 'Exceeds Results', 'Delivers Full Results', 'Delivers Some Results', 'Does Not Deliver Results']) &&
-             data.additional_notes is string;
+             data.key_contributions is string && (status == 'Pending' || status == 'Draft' || data.key_contributions.size() > 0) &&
+             data.development_evolution is string && (status == 'Pending' || status == 'Draft' || data.development_evolution.size() > 0) &&
+             (data.get('leadership_mastery', '') is string);
+    }
+
+    function isValidManagerPrivate(data) {
+      return data is map &&
+             data.performance_trending_rating is string &&
+             data.performance_trending_rating in ['Exceptional Results', 'Exceeds Results', 'Delivers Full Results', 'Delivers Some Results', 'Does Not Deliver Results', ''] &&
+             (data.get('promotion_readiness', null) == null || data.promotion_readiness == '' || data.promotion_readiness in ['ready_next_year_end', 'ready_next_mid_year', 'reassess_next_year']) &&
+             (data.get('additional_notes', '') is string) &&
+             data.manager_email is string &&
+             data.get('hrbp_email', '') is string &&
+             data.updated_at is string;
     }
 
     function isValidEmployee(data) {
       return data.employee_name is string && data.employee_name.size() > 0 &&
              data.employee_email is string && data.employee_email.size() > 0 &&
              data.manager_email is string && data.manager_email.size() > 0 &&
-             data.status in ['Pending', 'Draft', 'Submitted'] &&
-             (!('mid_year_checkin' in data) || isValidMidYearCheckin(data.mid_year_checkin, data.status == 'Submitted'));
+             data.status in ['Pending', 'Draft', 'Submitted', 'Shared', 'Acknowledged'] &&
+             (!('mid_year_checkin' in data) || isValidMidYearCheckin(data.mid_year_checkin, data.status));
     }
 
     function isValidAuditEntry(data) {
@@ -46,7 +56,7 @@ service cloud.firestore {
              data.actor_email is string &&
              data.actor_email == email() &&
              data.timestamp is string &&
-             data.event_type in ['submit', 'acknowledge', 'admin_override'];
+             data.event_type in ['submit', 'acknowledge', 'shared', 'admin_override'];
     }
 
     match /employees/{employeeId} {
@@ -55,7 +65,17 @@ service cloud.firestore {
       
       // Access Control Logic
       allow get: if isFreshworksEmployee() && (
-        isOwner(resource.data.employee_email) ||
+        (isOwner(resource.data.employee_email) && (resource.data.status == 'Shared' || resource.data.status == 'Acknowledged')) ||
+        resource.data.manager_email == email() ||
+        resource.data.get('hrbp_email', '') == email()
+      );
+
+      // Employee can always get their own basic profile, but we restrict mid_year_checkin visibility in the app
+      // For simplicity, we allow 'get' if they are owner OR manager OR hrbp.
+      // But we strictly block 'Shared' status for owner in UI.
+      // Here we refine the 'get' for owner to block viewing draft/submitted reviews.
+      allow get: if isFreshworksEmployee() && (
+        (isOwner(resource.data.employee_email) && (resource.data.status == 'Shared' || resource.data.status == 'Acknowledged')) ||
         resource.data.manager_email == email() ||
         resource.data.get('hrbp_email', '') == email()
       );
@@ -70,18 +90,31 @@ service cloud.firestore {
                     isValidEmployee(request.resource.data));
                     
       allow update: if isAdmin() || (isFreshworksEmployee() && (
-                    // Manager update - only if not already submitted
+                    // Manager update - only if not already shared/acknowledged (can edit after submit but before acknowledge)
                     (resource.data.manager_email == email() &&
-                     resource.data.status != 'Submitted' &&
+                     resource.data.status != 'Acknowledged' &&
                      request.resource.data.manager_email == email() &&
                      isValidEmployee(request.resource.data))
                     ) || (
                     // Employee acknowledgement
                     isOwner(resource.data.employee_email) && 
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged_at'])
+                    resource.data.status == 'Shared' &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged_at', 'status']) &&
+                    request.resource.data.status == 'Acknowledged'
                     ));
                     
       allow delete: if isAdmin();
+
+      match /manager_private/{docId} {
+        allow read: if isAdmin() || (isFreshworksEmployee() && (
+          get(/databases/$(database)/documents/employees/$(employeeId)).data.manager_email == email() ||
+          get(/databases/$(database)/documents/employees/$(employeeId)).data.get('hrbp_email', '') == email()
+        ));
+        allow write: if isAdmin() || (isFreshworksEmployee() && (
+          get(/databases/$(database)/documents/employees/$(employeeId)).data.manager_email == email() &&
+          isValidManagerPrivate(request.resource.data)
+        ));
+      }
     }
 
     match /import_audit/{auditId} {

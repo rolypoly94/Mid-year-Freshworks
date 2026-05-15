@@ -23,10 +23,10 @@ import { cn, formatDate } from '../../lib/utils';
 interface AuditTrailSectionProps {
   employeeId: string;
   initialExpanded?: boolean;
-  hideRating?: boolean;
+  hideConfidentialFields?: boolean;
 }
 
-export const AuditTrailSection = ({ employeeId, initialExpanded = false, hideRating = false }: AuditTrailSectionProps) => {
+export const AuditTrailSection = ({ employeeId, initialExpanded = false, hideConfidentialFields = false }: AuditTrailSectionProps) => {
   const [entries, setEntries] = useState<EmployeeAuditEntry[]>([]);
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({});
@@ -145,15 +145,15 @@ export const AuditTrailSection = ({ employeeId, initialExpanded = false, hideRat
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-3 opacity-60">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Before Override</p>
-                            <SnapshotDetail data={entry.previous_snapshot} hideRating={hideRating} />
+                            <SnapshotDetail data={entry.previous_snapshot} hideConfidentialFields={hideConfidentialFields} />
                           </div>
                           <div className="space-y-3">
                             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">After Override</p>
-                            <SnapshotDetail data={entry.snapshot} hideRating={hideRating} />
+                            <SnapshotDetail data={entry.snapshot} hideConfidentialFields={hideConfidentialFields} />
                           </div>
                         </div>
                       ) : (
-                        <SnapshotDetail data={entry.snapshot} hideRating={hideRating} />
+                        <SnapshotDetail data={entry.snapshot} hideConfidentialFields={hideConfidentialFields} />
                       )}
                     </div>
                   )}
@@ -167,13 +167,19 @@ export const AuditTrailSection = ({ employeeId, initialExpanded = false, hideRat
   );
 };
 
-const SnapshotDetail = ({ data, hideRating }: { data: any, hideRating?: boolean }) => (
+const SnapshotDetail = ({ data, hideConfidentialFields }: { data: any, hideConfidentialFields?: boolean }) => (
   <div className="space-y-3">
-    {!hideRating && (
-      <div className="p-3 bg-gray-50 rounded-xl">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rating</p>
-        <p className="text-xs font-bold text-gray-900">{data.performance_trending_rating || 'N/A'}</p>
-      </div>
+    {!hideConfidentialFields && (
+      <>
+        <div className="p-3 bg-gray-50 rounded-xl">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Trending Rating</p>
+          <p className="text-xs font-bold text-gray-900">{data.performance_trending_rating || 'N/A'}</p>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-xl">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Promotion Readiness</p>
+          <p className="text-xs font-bold text-gray-900">{data.promotion_readiness || 'N/A'}</p>
+        </div>
+      </>
     )}
 
     {/* GREAT Reflections */}
@@ -210,12 +216,19 @@ const SnapshotDetail = ({ data, hideRating }: { data: any, hideRating?: boolean 
     )}
 
     <div className="p-3 bg-gray-50 rounded-xl">
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Achievements</p>
-      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{data.doing_well || 'N/A'}</p>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Key Contributions</p>
+      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{data.key_contributions || data.doing_well || 'N/A'}</p>
     </div>
     <div className="p-3 bg-gray-50 rounded-xl">
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Growth Areas</p>
-      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{data.focus_to_grow || 'N/A'}</p>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Development & Evolution</p>
+      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{data.development_evolution || data.focus_to_grow || 'N/A'}</p>
     </div>
+
+    {!hideConfidentialFields && data.additional_notes && (
+      <div className="p-3 bg-rose-50/30 rounded-xl border border-rose-100/50">
+        <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">Calibration Notes</p>
+        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{data.additional_notes}</p>
+      </div>
+    )}
   </div>
 );

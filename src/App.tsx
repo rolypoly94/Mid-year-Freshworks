@@ -19,7 +19,7 @@ import { AdminView } from './components/views/AdminView';
 import { ManagerView } from './components/views/ManagerView';
 import { HRBPView } from './components/views/HRBPView';
 import { EmployeeView } from './components/views/EmployeeView';
-import { BellCurveChart } from './components/charts/BellCurveChart';
+import { CalibrationChart } from './components/charts/CalibrationChart';
 
 const App = () => {
   // --- Auth & State ---
@@ -31,7 +31,7 @@ const App = () => {
     hrbpEmployees, 
     currentUserEmployee, 
     isHRBP, 
-    isLoading 
+    isLoading,
   } = usePerformanceData(user, isAdmin, proxyEmail);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -45,7 +45,15 @@ const App = () => {
     setTimeout(() => setToast(null), 5000);
   };
 
-  const { isSaving, isSavingDraft, isOverriding, saveFeedback, adminOverrideReview } = usePerformanceActions(showToast);
+  const { 
+    isSaving, 
+    isSavingDraft, 
+    isSharing, 
+    isOverriding, 
+    saveFeedback, 
+    shareReview, 
+    adminOverrideReview 
+  } = usePerformanceActions(showToast);
   const { 
     isImporting, 
     isCommitting, 
@@ -57,12 +65,16 @@ const App = () => {
 
   // --- Feedback Form State ---
   const [midYearData, setMidYearData] = useState<MidYearCheckin>({
-    doing_well: '',
-    focus_to_grow: '',
+    key_contributions: '',
+    development_evolution: '',
+    leadership_mastery: '',
     performance_trending_rating: '',
+    promotion_readiness: null,
     additional_notes: '',
     great_reflections: []
   });
+
+  const [activeEmployeeId, setActiveEmployeeId] = useState<string | null>(null);
 
   const selectedEmployee = useMemo(() => 
     employees.find(e => e.id === selectedEmployeeId), 
@@ -70,36 +82,46 @@ const App = () => {
   );
 
   useEffect(() => {
-    if (selectedEmployee?.mid_year_checkin) {
-      setMidYearData({
-        doing_well: selectedEmployee.mid_year_checkin.doing_well || '',
-        focus_to_grow: selectedEmployee.mid_year_checkin.focus_to_grow || '',
-        performance_trending_rating: selectedEmployee.mid_year_checkin.performance_trending_rating || '',
-        additional_notes: selectedEmployee.mid_year_checkin.additional_notes || '',
-        great_reflections: selectedEmployee.mid_year_checkin.great_reflections || []
-      });
-    } else {
-      setMidYearData({ 
-        doing_well: '', 
-        focus_to_grow: '', 
-        performance_trending_rating: '', 
-        additional_notes: '',
-        great_reflections: [] 
-      });
+    if (selectedEmployeeId !== activeEmployeeId) {
+      setActiveEmployeeId(selectedEmployeeId);
+      if (selectedEmployee?.mid_year_checkin) {
+        setMidYearData({
+          key_contributions: selectedEmployee.mid_year_checkin.key_contributions || '',
+          development_evolution: selectedEmployee.mid_year_checkin.development_evolution || '',
+          leadership_mastery: selectedEmployee.mid_year_checkin.leadership_mastery || '',
+          performance_trending_rating: selectedEmployee.mid_year_checkin.performance_trending_rating || '',
+          promotion_readiness: selectedEmployee.mid_year_checkin.promotion_readiness || null,
+          additional_notes: selectedEmployee.mid_year_checkin.additional_notes || '',
+          great_reflections: selectedEmployee.mid_year_checkin.great_reflections || []
+        });
+      } else {
+        setMidYearData({ 
+          key_contributions: '', 
+          development_evolution: '', 
+          leadership_mastery: '',
+          performance_trending_rating: '', 
+          promotion_readiness: null,
+          additional_notes: '',
+          great_reflections: [] 
+        });
+      }
     }
-  }, [selectedEmployee]);
+  }, [selectedEmployee, selectedEmployeeId, activeEmployeeId]);
 
   const isFormValid = useMemo(() => 
-    midYearData.doing_well.trim() !== '' &&
-    midYearData.focus_to_grow.trim() !== '' &&
+    midYearData.key_contributions.trim() !== '' &&
+    midYearData.development_evolution.trim() !== '' &&
+    midYearData.leadership_mastery?.trim() !== '' &&
     midYearData.performance_trending_rating !== '', 
     [midYearData]
   );
 
   const isDraftValid = useMemo(() => 
-    midYearData.doing_well.trim() !== '' ||
-    midYearData.focus_to_grow.trim() !== '' ||
+    midYearData.key_contributions.trim() !== '' ||
+    midYearData.development_evolution.trim() !== '' ||
+    midYearData.leadership_mastery?.trim() !== '' ||
     midYearData.performance_trending_rating !== '' ||
+    midYearData.promotion_readiness !== null ||
     midYearData.additional_notes?.trim() !== '' ||
     (midYearData.great_reflections?.some(r => r.response.trim() !== '' || r.not_applicable)),
     [midYearData]
@@ -346,7 +368,7 @@ const App = () => {
         ) : viewMode === 'analytics' ? (
           <div className="space-y-8">
             <h1 className="text-2xl font-bold text-gray-900">Manager Analytics</h1>
-            <BellCurveChart employees={managerEmployees} />
+            <CalibrationChart employees={managerEmployees} scopeLabel="Your team" />
           </div>
         ) : (
           <ManagerView 
@@ -357,13 +379,17 @@ const App = () => {
             onSearchChange={setSearchQuery}
             midYearData={midYearData}
             setMidYearData={setMidYearData}
-            handleSave={() => {
+            handleSave={(status) => {
               if (!selectedEmployeeId) return;
-              if (!isFormValid) {
-                showToast('Please fill in all required fields (Wins, Growth, and Rating) before completing.', 'error');
+              if (status === 'Submitted' && !isFormValid) {
+                showToast('Please fill in all required fields (Contributions, Development, Leadership, and Rating) before submitting.', 'error');
                 return;
               }
-              saveFeedback(selectedEmployeeId, midYearData, true, user);
+              saveFeedback(selectedEmployeeId, midYearData, status, user);
+            }}
+            handleShare={() => {
+              if (!selectedEmployeeId) return;
+              shareReview(selectedEmployeeId, user);
             }}
             handleSaveDraft={() => {
               if (!selectedEmployeeId) return;
@@ -371,10 +397,11 @@ const App = () => {
                 showToast('Please enter at least one field before saving a draft.', 'info');
                 return;
               }
-              saveFeedback(selectedEmployeeId, midYearData, false, user);
+              saveFeedback(selectedEmployeeId, midYearData, 'Draft', user);
             }}
             isSaving={isSaving}
             isSavingDraft={isSavingDraft}
+            isSharing={isSharing}
             isFormValid={isFormValid}
             isDraftValid={isDraftValid}
             onSeedData={handleSeed}

@@ -1,5 +1,6 @@
 {
   "name": "Mid-Year Performance Feedback Portal",
   "description": "A professional portal for managers to provide performance feedback to their direct reports.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

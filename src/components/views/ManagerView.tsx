@@ -11,7 +11,8 @@ import {
   ChevronRight, 
   CheckCircle2, 
   Clock, 
-  AlertCircle 
+  AlertCircle,
+  Share2
 } from 'lucide-react';
 
 interface ManagerViewProps {
@@ -22,10 +23,12 @@ interface ManagerViewProps {
   onSearchChange: (query: string) => void;
   midYearData: MidYearCheckin;
   setMidYearData: React.Dispatch<React.SetStateAction<MidYearCheckin>>;
-  handleSave: () => void;
+  handleSave: (status: 'Draft' | 'Submitted') => void;
+  handleShare: () => void;
   handleSaveDraft: () => void;
   isSaving: boolean;
   isSavingDraft: boolean;
+  isSharing: boolean;
   isFormValid: boolean;
   isDraftValid: boolean;
   onSeedData: () => void;
@@ -45,9 +48,11 @@ export const ManagerView = ({
   midYearData,
   setMidYearData,
   handleSave,
+  handleShare,
   handleSaveDraft,
   isSaving,
   isSavingDraft,
+  isSharing,
   isFormValid,
   isDraftValid,
   onSeedData,
@@ -130,8 +135,12 @@ export const ManagerView = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                       {emp.status === 'Submitted' ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                       {emp.status === 'Acknowledged' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : emp.status === 'Shared' ? (
+                        <Share2 className="w-4 h-4 text-blue-500" />
+                      ) : emp.status === 'Submitted' ? (
+                        <CheckCircle2 className="w-4 h-4 text-indigo-500" />
                       ) : emp.status === 'Draft' ? (
                         <Clock className="w-4 h-4 text-amber-500" />
                       ) : (
@@ -168,9 +177,11 @@ export const ManagerView = ({
             midYearData={midYearData}
             setMidYearData={setMidYearData}
             onSave={handleSave}
+            onShare={handleShare}
             onSaveDraft={handleSaveDraft}
             isSaving={isSaving}
             isSavingDraft={isSavingDraft}
+            isSharing={isSharing}
             isFormValid={isFormValid}
             isDraftValid={isDraftValid}
             isAdmin={isAdmin}

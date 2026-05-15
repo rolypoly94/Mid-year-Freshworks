@@ -59,7 +59,7 @@ export const AuditTrailModal = ({ isOpen, onClose, employee }: AuditTrailModalPr
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
             <div>
               <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Status</p>
-              <p className="text-[10px] font-bold text-emerald-600">{employee.status}</p>
+              <p className="text-[10px] font-bold text-emerald-600">{employee.status === 'Submitted' ? 'Feedback Recorded' : employee.status}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

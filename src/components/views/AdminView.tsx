@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Employee } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { BellCurveChart } from '../charts/BellCurveChart';
+import { CalibrationChart } from '../charts/CalibrationChart';
 import { AdminVisuals } from '../charts/AdminVisuals';
 import { cn } from '../../lib/utils';
 import { 
@@ -79,8 +79,8 @@ export const AdminView = ({
         stats[email] = { name: e.manager_name || 'N/A', email, total: 0, completed: 0, pending: 0, reports: [] };
       }
       stats[email].total++;
-      if (e.status === 'Submitted') stats[email].completed++;
-      if (e.status === 'Pending') stats[email].pending++;
+      if (['Submitted', 'Shared', 'Acknowledged'].includes(e.status)) stats[email].completed++;
+      if (e.status === 'Pending' || e.status === 'Draft') stats[email].pending++;
       stats[email].reports.push(e);
     });
     return Object.values(stats).sort((a, b) => b.total - a.total);
@@ -178,7 +178,7 @@ export const AdminView = ({
         
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-gray-900">Org-wide Performance Trending Rating Distribution</h2>
-          <BellCurveChart employees={employees} />
+          <CalibrationChart employees={employees} scopeLabel="Org-wide" />
         </div>
 
         <Card>
@@ -276,11 +276,13 @@ export const AdminView = ({
                                       <td className="px-6 py-3">
                                         <span className={cn(
                                           "px-2 py-0.5 rounded-full font-bold text-[10px] border whitespace-nowrap",
-                                          report.status === 'Submitted' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                                          report.status === 'Draft' ? "bg-blue-50 text-blue-700 border-blue-100" :
+                                          report.status === 'Acknowledged' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                                          report.status === 'Shared' ? "bg-blue-50 text-blue-700 border-blue-100" :
+                                          report.status === 'Submitted' ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
+                                          report.status === 'Draft' ? "bg-gray-50 text-gray-700 border-gray-100" :
                                           "bg-amber-50 text-amber-700 border-amber-100"
                                         )}>
-                                          {report.status}
+                                          {report.status === 'Submitted' ? 'Feedback Recorded' : report.status}
                                         </span>
                                       </td>
                                       <td className="px-6 py-3 text-right">

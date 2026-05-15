@@ -230,7 +230,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             } else {
               const hasFeedback = existing.status !== 'Pending' || 
                                 (existing.mid_year_checkin && 
-                                 (existing.mid_year_checkin.doing_well || existing.mid_year_checkin.focus_to_grow));
+                                 (existing.mid_year_checkin.key_contributions || existing.mid_year_checkin.development_evolution));
               
               if (hasFeedback) {
                 const preserveReasons = [...reasons, 'Review in progress or submitted. Profile fields will be updated, review content preserved.'];
@@ -368,8 +368,11 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
         'HRBP Email': emp.hrbp_email || '',
         'Status': status,
         'Current Rating (Mid-Year)': emp.mid_year_checkin?.performance_trending_rating || '',
-        'Doing Well': emp.mid_year_checkin?.doing_well || '',
-        'Growth Focus': emp.mid_year_checkin?.focus_to_grow || '',
+        'Promotion Readiness': emp.mid_year_checkin?.promotion_readiness || '',
+        'Calibration Notes': emp.mid_year_checkin?.additional_notes || '',
+        'Key Contributions': emp.mid_year_checkin?.key_contributions || '',
+        'Development & Evolution': emp.mid_year_checkin?.development_evolution || '',
+        'Leadership Mastery': emp.mid_year_checkin?.leadership_mastery || '',
         '2024 Rating': emp.rating_2024 || '',
         '2025 Rating': emp.rating_2025 || '',
         'Submitted At': formatDateStr(emp.mid_year_checkin?.submitted_at),

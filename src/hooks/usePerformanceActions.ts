@@ -1,30 +1,59 @@
 import { useState } from 'react';
-import { doc, updateDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { MidYearCheckin, EmployeeAuditEntry } from '../types';
+import { MidYearCheckin, EmployeeAuditEntry, ManagerPrivateData, Employee } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { User } from 'firebase/auth';
 
 export const usePerformanceActions = (showToast: (msg: string, type?: any) => void) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [isOverriding, setIsOverriding] = useState(false);
 
-  const saveFeedback = async (employeeId: string, data: MidYearCheckin, isFinal: boolean, user: User | null) => {
+  const saveFeedback = async (employeeId: string, data: MidYearCheckin, status: 'Draft' | 'Submitted', user: User | null) => {
+    const isFinal = status === 'Submitted';
     const setSaving = isFinal ? setIsSaving : setIsSavingDraft;
     setSaving(true);
 
     try {
       const timestamp = new Date().toISOString();
       const docRef = doc(db, 'employees', employeeId);
+      const privateRef = doc(db, 'employees', employeeId, 'manager_private', 'current');
+
+      // Fetch employee metadata for hrbp_email
+      const empSnap = await getDoc(docRef);
+      const empData = empSnap.data() as Employee;
+      const hrbp_email = empData?.hrbp_email?.toLowerCase() || '';
+
+      // Separate private and public data
+      const { 
+        performance_trending_rating = '', 
+        promotion_readiness = null, 
+        additional_notes = '',
+        ...publicData 
+      } = data;
+
+      // Update main document
       await updateDoc(docRef, {
         mid_year_checkin: {
-          ...data,
-          submitted_at: isFinal ? timestamp : null
+          ...publicData,
+          submitted_at: isFinal ? timestamp : (publicData.submitted_at || null)
         },
-        status: isFinal ? 'Submitted' : 'Draft',
+        status: status,
         updated_at: timestamp
       });
+
+      // Update private document
+      const privateData: ManagerPrivateData = {
+        performance_trending_rating,
+        promotion_readiness,
+        additional_notes,
+        updated_at: timestamp,
+        manager_email: user?.email?.toLowerCase() || '',
+        hrbp_email
+      };
+      await setDoc(privateRef, privateData);
 
       if (isFinal && user) {
         try {
@@ -40,11 +69,10 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
           await addDoc(auditRef, auditEntry);
         } catch (auditError) {
           console.error('Audit log failed:', auditError);
-          showToast('Review submitted — audit log sync delayed', 'info');
         }
       }
 
-      showToast(isFinal ? 'Review completed successfully!' : 'Draft saved!', 'success');
+      showToast(isFinal ? 'Feedback is recorded but not shared with employee yet.' : 'Draft saved!', 'success');
       return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `employees/${employeeId}`);
@@ -52,6 +80,44 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const shareReview = async (employeeId: string, user: User | null) => {
+    if (!user) return false;
+    setIsSharing(true);
+
+    try {
+      const timestamp = new Date().toISOString();
+      const docRef = doc(db, 'employees', employeeId);
+      
+      await updateDoc(docRef, {
+        status: 'Shared',
+        'mid_year_checkin.shared_at': timestamp,
+        'mid_year_checkin.shared_by': user.email?.toLowerCase()
+      });
+
+      // Audit log
+      const auditRef = collection(db, 'employee_audit');
+      const auditEntry: EmployeeAuditEntry = {
+        employee_id: employeeId,
+        actor_email: user.email?.toLowerCase() || '',
+        actor_name: user.displayName || null,
+        event_type: 'shared',
+        timestamp: timestamp,
+        notes: 'Review shared with employee'
+      };
+      
+      await addDoc(auditRef, auditEntry);
+
+      showToast('Review shared with employee successfully!', 'success');
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `employees/${employeeId}`);
+      showToast('Sharing failed.', 'error');
+      return false;
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -69,9 +135,30 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
       const timestamp = new Date().toISOString();
 
       // update employee
+      const { 
+        performance_trending_rating = '', 
+        promotion_readiness = null, 
+        additional_notes = '',
+        ...publicData 
+      } = updatedData;
+
       await updateDoc(docRef, {
-        mid_year_checkin: updatedData,
+        mid_year_checkin: publicData,
         updated_at: timestamp
+      });
+
+      // update private
+      const privateRef = doc(db, 'employees', employeeId, 'manager_private', 'current');
+      const hrbp_email = docSnap.data().hrbp_email?.toLowerCase() || '';
+      const manager_email = docSnap.data().manager_email?.toLowerCase() || '';
+
+      await setDoc(privateRef, {
+        performance_trending_rating,
+        promotion_readiness,
+        additional_notes,
+        updated_at: timestamp,
+        manager_email,
+        hrbp_email
       });
 
       // write audit
@@ -100,5 +187,5 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
     }
   };
 
-  return { isSaving, isSavingDraft, isOverriding, saveFeedback, adminOverrideReview };
+  return { isSaving, isSavingDraft, isSharing, isOverriding, saveFeedback, shareReview, adminOverrideReview };
 };

@@ -102,11 +102,12 @@ export const EmployeeView = ({
     );
   }
 
-  const isSubmitted = employee.status === 'Submitted';
+  const isVisible = ['Shared', 'Acknowledged'].includes(employee.status);
+  const isFinalized = ['Submitted', 'Shared', 'Acknowledged'].includes(employee.status);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {isAdmin && isSubmitted && (
+      {isAdmin && isFinalized && (
         <OverrideModal 
           isOpen={isOverrideModalOpen}
           onClose={() => setIsOverrideModalOpen(false)}
@@ -187,7 +188,7 @@ export const EmployeeView = ({
         </div>
 
         <div className="flex-1 space-y-6">
-          {isAdmin && isSubmitted && (
+          {isAdmin && isFinalized && (
             <Card className="p-6 bg-amber-50 border-none shadow-lg shadow-amber-100/50 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
@@ -217,39 +218,54 @@ export const EmployeeView = ({
               </div>
             </h3>
 
-            {employee.status === 'Pending' || employee.status === 'Draft' ? (
+            {!isVisible ? (
               <div className="bg-amber-50 border border-amber-100 rounded-3xl p-8 text-center">
                 <p className="text-amber-800 font-bold mb-2">Feedback in Progress</p>
-                <p className="text-amber-600 text-sm">Your manager is currently working on your mid-year feedback. You will see it here once it is submitted.</p>
+                <p className="text-amber-600 text-sm">Your manager is currently working on your mid-year feedback. You will see it here once it is shared with you.</p>
               </div>
             ) : (
               <div className="space-y-12">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">What are you doing well?</h4>
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Key Contributions</h4>
                   </div>
                   <div className="bg-gray-50 rounded-3xl p-6">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.doing_well}</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.key_contributions}</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-amber-600" />
-                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">What is one thing you should focus on to grow?</h4>
+                    <TrendingUp className="w-5 h-5 text-amber-600" />
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Development & Evolution</h4>
                   </div>
                   <div className="bg-gray-50 rounded-3xl p-6 border-l-4 border-amber-500">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.focus_to_grow}</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.development_evolution}</p>
                   </div>
                 </div>
 
-                {/* GREAT Leadership Reflections */}
-                {employee.mid_year_checkin?.great_reflections && employee.mid_year_checkin.great_reflections.length > 0 && (
+                {/* Leadership Mastery */}
+                {employee.mid_year_checkin?.leadership_mastery && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-5 h-5 text-indigo-600" />
+                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Leadership Mastery</h4>
+                    </div>
+                    <div className="bg-indigo-50/30 border border-indigo-100 rounded-3xl p-6">
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.leadership_mastery}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* GREAT Leadership Reflections (Backward Compatibility) */}
+                {employee.mid_year_checkin?.great_reflections && 
+                 employee.mid_year_checkin.great_reflections.length > 0 && 
+                 !employee.mid_year_checkin.leadership_mastery && (
                   <div className="space-y-6">
                     <div className="flex items-center gap-2">
                       <Award className="w-5 h-5 text-indigo-600" />
-                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Leadership Reflections</h4>
+                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Legacy Leadership Reflections</h4>
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                       {employee.mid_year_checkin.great_reflections.map((r, i) => (
@@ -283,28 +299,41 @@ export const EmployeeView = ({
                   </div>
                 )}
 
-                {/* Performance Trending Rating (Confidential - Hidden from Employee) */}
-                {(!user?.email || user.email.toLowerCase() !== employee.employee_email.toLowerCase() || isAdmin) && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                       <Award className="w-5 h-5 text-blue-600" />
-                       <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Performance Trending Rating</h4>
+                {/* Performance Trending Rating & Promotion Readiness (Confidential - Hidden from Employee) */}
+                {isAdmin && (
+                  <div className="space-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-y border-gray-50 py-8">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                           <Award className="w-5 h-5 text-blue-600" />
+                           <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Performance Trending Rating</h4>
+                        </div>
+                        <div className="bg-blue-50/50 rounded-2xl p-4 inline-block">
+                           <p className="text-xl font-extrabold text-blue-700">{employee.mid_year_checkin?.performance_trending_rating || '—'}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                           <TrendingUp className="w-5 h-5 text-blue-600" />
+                           <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Promotion Readiness</h4>
+                        </div>
+                        <div className="bg-blue-50/50 rounded-2xl p-4 inline-block">
+                           <p className="text-xl font-extrabold text-blue-700">{employee.mid_year_checkin?.promotion_readiness || '—'}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-blue-50/50 rounded-2xl p-4 inline-block">
-                       <p className="text-xl font-extrabold text-blue-700">{employee.mid_year_checkin?.performance_trending_rating}</p>
-                    </div>
-                  </div>
-                )}
 
-                {employee.mid_year_checkin?.additional_notes && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-indigo-600" />
-                      <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Additional Notes</h4>
-                    </div>
-                    <div className="bg-gray-50 rounded-3xl p-6">
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.additional_notes}</p>
-                    </div>
+                    {employee.mid_year_checkin?.additional_notes && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-indigo-600" />
+                          <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Additional Calibration Notes</h4>
+                        </div>
+                        <div className="bg-gray-50 rounded-3xl p-6">
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.additional_notes}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -334,12 +363,12 @@ export const EmployeeView = ({
                   )}
                 </div>
 
-                {isSubmitted && (
+                {isFinalized && (
                   <div className="pt-8 border-t border-gray-50">
                     <AuditTrailSection 
                       employeeId={employee.id} 
                       initialExpanded={isAdmin} 
-                      hideRating={user?.email?.toLowerCase() === employee.employee_email.toLowerCase() && !isAdmin}
+                      hideConfidentialFields={user?.email?.toLowerCase() === employee.employee_email.toLowerCase() && !isAdmin}
                     />
                   </div>
                 )}
