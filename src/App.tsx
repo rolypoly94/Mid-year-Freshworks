@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { LogOut, Target, X } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 // Hooks & Services
 import { useAuth } from './hooks/useAuth';
@@ -47,6 +46,7 @@ const App = () => {
     isHRBP,
     isLoading,
     refreshAdminEmployees,
+    refreshHrbpEmployees,
   } = usePerformanceData(user, isAdmin, proxyEmail, showToast);
 
   const { 
@@ -84,8 +84,9 @@ const App = () => {
     }
   };
 
-  const downloadTemplate = () => {
-    const templateData = [{ 
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const templateData = [{
       'Employee ID': 'FW1024',
       'First Name': 'Jane',
       'Last Name': 'Smith',
@@ -198,7 +199,7 @@ const App = () => {
               )}
               {isHRBP && (
                 <button
-                  onClick={() => setViewMode('hrbp')}
+                  onClick={() => { setViewMode('hrbp'); refreshHrbpEmployees(); }}
                   className={cn(
                     "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
                     viewMode === 'hrbp' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"

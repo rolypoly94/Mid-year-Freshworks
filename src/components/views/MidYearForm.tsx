@@ -120,15 +120,20 @@ export const MidYearForm = ({
   const handleRefine = async (fieldName: keyof MidYearCheckin, context: string) => {
     const text = midYearData[fieldName] as string;
     if (!text || text.trim().length < 5) return;
+    if (!user) return;
 
     setRefiningField(fieldName);
     try {
+      const idToken = await user.getIdToken();
       const response = await fetch('/api/gemini/refine-feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ feedback: text, context })
       });
-      
+
       const data = await response.json();
       if (data.refinedText) {
         setMidYearData(prev => ({ ...prev, [fieldName]: data.refinedText }));

@@ -31,6 +31,8 @@ export const usePerformanceData = (
   const [isLoading, setIsLoading] = useState(true);
   const [adminRefreshKey, setAdminRefreshKey] = useState(0);
   const refreshAdminEmployees = useCallback(() => setAdminRefreshKey(k => k + 1), []);
+  const [hrbpRefreshKey, setHrbpRefreshKey] = useState(0);
+  const refreshHrbpEmployees = useCallback(() => setHrbpRefreshKey(k => k + 1), []);
 
   const effectiveUserEmail = useMemo(() => {
     if (!user) return null;
@@ -52,6 +54,7 @@ export const usePerformanceData = (
 
     const path = 'employees';
     setIsLoading(true);
+    let cancelled = false;
 
     // Manager Query
     const qManager = query(collection(db, path), where('manager_email', '==', effectiveUserEmail));
@@ -63,22 +66,27 @@ export const usePerformanceData = (
       showToast?.('Connection issue — your team list may be out of date. Try refreshing.', 'error');
     });
 
-    // HRBP Query
+    // HRBP Query — one-shot fetch. Most users are not HRBPs, so a live
+    // listener for the whole session would burn a socket for no gain.
+    // For HRBPs, refresh fires when they click into the HRBP tab.
     const qHRBP = query(collection(db, path), where('hrbp_email', '==', effectiveUserEmail));
-    const unsubHRBP = onSnapshot(qHRBP, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-      setHrbpEmployees(data);
-      setIsHRBP(data.length > 0);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'employees (hrbp query)');
-      showToast?.('Connection issue — HRBP data may be out of date. Try refreshing.', 'error');
-    });
+    getDocs(qHRBP)
+      .then(snapshot => {
+        if (cancelled) return;
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employee));
+        setHrbpEmployees(data);
+        setIsHRBP(data.length > 0);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        handleFirestoreError(error, OperationType.LIST, 'employees (hrbp query)');
+        showToast?.('Failed to check HRBP scope. Try refreshing.', 'error');
+      });
 
     // Admin: fetch the full collection once (no live listener). This avoids
     // every admin tab broadcasting every employee write in real time.
     // Call refreshAdminEmployees() to re-fetch (we trigger that on viewMode
     // change to admin from App.tsx).
-    let cancelled = false;
     if (isAdmin && !proxyEmail) {
       const qAll = query(collection(db, path));
       getDocs(qAll)
@@ -146,19 +154,23 @@ export const usePerformanceData = (
     return () => {
       cancelled = true;
       unsubManager();
-      unsubHRBP();
       unsubSelf();
       unsubPrivate();
     };
-  }, [user, isAdmin, proxyEmail, effectiveUserEmail, adminRefreshKey, showToast]);
+  }, [user, isAdmin, proxyEmail, effectiveUserEmail, adminRefreshKey, hrbpRefreshKey, showToast]);
 
   // Merge lists and private data
   const mergedEmployees = useMemo(() => {
-    const list = isAdmin && !proxyEmail ? employees : [...managerEmployees];
-    if (!isAdmin || proxyEmail) {
-      hrbpEmployees.forEach(emp => {
-        if (!list.find(e => e.id === emp.id)) list.push(emp);
-      });
+    let list: Employee[];
+    if (isAdmin && !proxyEmail) {
+      list = employees;
+    } else {
+      // Dedup manager + hrbp lists via a Map keyed by id — O(n+m) vs the
+      // previous list.find loop which was O(n·m).
+      const seen = new Map<string, Employee>();
+      managerEmployees.forEach(emp => seen.set(emp.id, emp));
+      hrbpEmployees.forEach(emp => { if (!seen.has(emp.id)) seen.set(emp.id, emp); });
+      list = Array.from(seen.values());
     }
 
     return list.map(emp => {
@@ -193,5 +205,6 @@ export const usePerformanceData = (
     isHRBP,
     isLoading,
     refreshAdminEmployees,
+    refreshHrbpEmployees,
   };
 };
