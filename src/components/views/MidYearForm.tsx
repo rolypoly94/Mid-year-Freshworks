@@ -339,7 +339,6 @@ export const MidYearForm = ({
           </Card>
         </div>
       </div>
-
       {/* Section 3: Review Form */}
       <Card className="p-10 bg-white border border-black/[0.03] shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[2rem] space-y-12">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-black/[0.03] pb-10">
@@ -478,7 +477,7 @@ export const MidYearForm = ({
           {/* Leadership Mastery */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-[var(--color-apple-blue)]/5 border border-[var(--color-apple-blue)]/10 flex items-center justify-center text-[11px] font-black text-[var(--color-apple-blue)]">
+              <div className="w-6 h-6 rounded-full bg-[var(--color-apple-blue)]/5 border border border-[var(--color-apple-blue)]/10 flex items-center justify-center text-[11px] font-black text-[var(--color-apple-blue)]">
                 03
               </div>
               <h4 className="font-bold text-[14px] text-[var(--color-apple-black)]">Leadership Mastery</h4>
