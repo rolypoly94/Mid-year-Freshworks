@@ -33,81 +33,39 @@ import { PROMOTION_READINESS_OPTIONS } from '../../lib/promotion-readiness';
 
 interface MidYearFormProps {
   employee: Employee;
-  onSave: (data: MidYearCheckin, status: 'Draft' | 'Submitted') => void;
+  midYearData: MidYearCheckin;
+  setMidYearData: React.Dispatch<React.SetStateAction<MidYearCheckin>>;
+  onSave: (status: 'Draft' | 'Submitted') => void;
   onShare: () => void;
-  onSaveDraft: (data: MidYearCheckin) => void;
+  onSaveDraft: () => void;
   isSaving: boolean;
   isSavingDraft: boolean;
   isSharing: boolean;
+  isFormValid: boolean;
+  isDraftValid: boolean;
   isAdmin?: boolean;
   onAdminOverride?: (employeeId: string, data: MidYearCheckin, reason: string, user: User | null) => Promise<boolean>;
   isOverriding?: boolean;
   user?: User | null;
-  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
-
-const emptyMidYearData = (): MidYearCheckin => ({
-  key_contributions: '',
-  development_evolution: '',
-  leadership_mastery: '',
-  performance_trending_rating: '',
-  promotion_readiness: null,
-  additional_notes: '',
-  great_reflections: [],
-});
-
-const hydrateFromEmployee = (employee: Employee): MidYearCheckin => {
-  const c = employee.mid_year_checkin;
-  if (!c) return emptyMidYearData();
-  return {
-    key_contributions: c.key_contributions || '',
-    development_evolution: c.development_evolution || '',
-    leadership_mastery: c.leadership_mastery || '',
-    performance_trending_rating: c.performance_trending_rating || '',
-    promotion_readiness: c.promotion_readiness || null,
-    additional_notes: c.additional_notes || '',
-    great_reflections: c.great_reflections || [],
-  };
-};
 
 export const MidYearForm = ({
   employee,
+  midYearData,
+  setMidYearData,
   onSave,
   onShare,
   onSaveDraft,
   isSaving,
   isSavingDraft,
   isSharing,
+  isFormValid,
+  isDraftValid,
   isAdmin,
   onAdminOverride,
   isOverriding,
-  user,
-  showToast,
+  user
 }: MidYearFormProps) => {
-  const [midYearData, setMidYearData] = React.useState<MidYearCheckin>(() => hydrateFromEmployee(employee));
-
-  // Re-hydrate only when the selected employee changes — never on background
-  // snapshot updates of the same employee, so in-progress edits are safe.
-  React.useEffect(() => {
-    setMidYearData(hydrateFromEmployee(employee));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee.id]);
-
-  const isFormValid =
-    midYearData.key_contributions.trim() !== '' &&
-    midYearData.development_evolution.trim() !== '' &&
-    (midYearData.leadership_mastery?.trim() ?? '') !== '' &&
-    midYearData.performance_trending_rating !== '';
-
-  const isDraftValid =
-    midYearData.key_contributions.trim() !== '' ||
-    midYearData.development_evolution.trim() !== '' ||
-    (midYearData.leadership_mastery?.trim() ?? '') !== '' ||
-    midYearData.performance_trending_rating !== '' ||
-    midYearData.promotion_readiness !== null ||
-    (midYearData.additional_notes?.trim() ?? '') !== '' ||
-    !!midYearData.great_reflections?.some(r => r.response.trim() !== '' || r.not_applicable);
-
   const [isConfirmModalOpen, setIsConfirmModalOpen] = React.useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = React.useState(false);
@@ -145,19 +103,7 @@ export const MidYearForm = ({
   const behaviors = React.useMemo(() => getLeadershipBehaviors(levelKey), [levelKey]);
 
   const handleSaveAttempt = () => {
-    if (!isFormValid) {
-      showToast('Please fill in all required fields (Contributions, Development, Leadership, and Rating) before submitting.', 'error');
-      return;
-    }
     setIsConfirmModalOpen(true);
-  };
-
-  const handleSaveDraftClick = () => {
-    if (!isDraftValid) {
-      showToast('Please enter at least one field before saving a draft.', 'info');
-      return;
-    }
-    onSaveDraft(midYearData);
   };
 
   const handleShareAttempt = () => {
@@ -166,7 +112,7 @@ export const MidYearForm = ({
 
   const handleConfirmSubmit = () => {
     setIsConfirmModalOpen(false);
-    onSave(midYearData, 'Submitted');
+    onSave('Submitted');
   };
 
   const handleConfirmShare = () => {
@@ -350,8 +296,8 @@ export const MidYearForm = ({
           
           <div className="flex flex-wrap items-center justify-center gap-3">
             {!isShared && employee.status !== 'Submitted' && (
-              <button
-                onClick={handleSaveDraftClick}
+              <button 
+                onClick={onSaveDraft} 
                 disabled={!isDraftValid || isSavingDraft}
                 className="px-5 py-2 rounded-full font-semibold text-[13px] transition-all active:scale-95 bg-black/[0.04] text-[var(--color-apple-black)] hover:bg-black/[0.1] disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >

@@ -1,27 +1,19 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
+import { useState, useEffect, useMemo } from 'react';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
   collectionGroup,
-  or,
-  getDocs,
+  or
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Employee, MidYearCheckin, ManagerPrivateData } from '../types';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
-type ShowToast = (msg: string, type?: 'success' | 'error' | 'info') => void;
-
-export const usePerformanceData = (
-  user: User | null,
-  isAdmin: boolean,
-  proxyEmail: string | null,
-  showToast?: ShowToast,
-) => {
+export const usePerformanceData = (user: User | null, isAdmin: boolean, proxyEmail: string | null) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [managerEmployees, setManagerEmployees] = useState<Employee[]>([]);
   const [hrbpEmployees, setHrbpEmployees] = useState<Employee[]>([]);
@@ -29,8 +21,6 @@ export const usePerformanceData = (
   const [privateDataMap, setPrivateDataMap] = useState<Record<string, ManagerPrivateData>>({});
   const [isHRBP, setIsHRBP] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [adminRefreshKey, setAdminRefreshKey] = useState(0);
-  const refreshAdminEmployees = useCallback(() => setAdminRefreshKey(k => k + 1), []);
 
   const effectiveUserEmail = useMemo(() => {
     if (!user) return null;
@@ -60,7 +50,6 @@ export const usePerformanceData = (
       setManagerEmployees(data);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'employees (manager query)');
-      showToast?.('Connection issue — your team list may be out of date. Try refreshing.', 'error');
     });
 
     // HRBP Query
@@ -71,47 +60,30 @@ export const usePerformanceData = (
       setIsHRBP(data.length > 0);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'employees (hrbp query)');
-      showToast?.('Connection issue — HRBP data may be out of date. Try refreshing.', 'error');
     });
 
-    // Admin: fetch the full collection once (no live listener). This avoids
-    // every admin tab broadcasting every employee write in real time.
-    // Call refreshAdminEmployees() to re-fetch (we trigger that on viewMode
-    // change to admin from App.tsx).
-    let cancelled = false;
+    // Admin All Query
+    let unsubAll: (() => void) | undefined;
     if (isAdmin && !proxyEmail) {
       const qAll = query(collection(db, path));
-      getDocs(qAll)
-        .then(snapshot => {
-          if (cancelled) return;
-          const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employee));
-          setEmployees(data);
-          setIsLoading(false);
-        })
-        .catch(error => {
-          if (cancelled) return;
-          handleFirestoreError(error, OperationType.LIST, 'employees (admin all)');
-          showToast?.('Failed to load employees. Try refreshing.', 'error');
-          setIsLoading(false);
-        });
+      unsubAll = onSnapshot(qAll, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setEmployees(data);
+        setIsLoading(false);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'employees (admin all)');
+      });
     }
 
     // Individual Employee Record
     const docRef = doc(db, path, effectiveUserEmail);
-    const unsubSelf = onSnapshot(
-      docRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setCurrentUserEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
-        } else {
-          setCurrentUserEmployee(null);
-        }
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, 'employees (self)');
-        showToast?.('Connection issue — your record may be out of date. Try refreshing.', 'error');
-      },
-    );
+    const unsubSelf = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setCurrentUserEmployee({ id: docSnap.id, ...docSnap.data() } as Employee);
+      } else {
+        setCurrentUserEmployee(null);
+      }
+    });
 
     // Fetch Manager Private Data
     // We can use a collectionGroup query if allowed, but for simplicity we'll fetch them individually for the lists
@@ -144,13 +116,13 @@ export const usePerformanceData = (
     });
 
     return () => {
-      cancelled = true;
       unsubManager();
       unsubHRBP();
       unsubSelf();
       unsubPrivate();
+      if (unsubAll) unsubAll();
     };
-  }, [user, isAdmin, proxyEmail, effectiveUserEmail, adminRefreshKey, showToast]);
+  }, [user, isAdmin, proxyEmail, effectiveUserEmail]);
 
   // Merge lists and private data
   const mergedEmployees = useMemo(() => {
@@ -185,13 +157,12 @@ export const usePerformanceData = (
     });
   }, [employees, managerEmployees, hrbpEmployees, isAdmin, proxyEmail, privateDataMap]);
 
-  return {
-    employees: mergedEmployees,
+  return { 
+    employees: mergedEmployees, 
     managerEmployees: mergedEmployees.filter(e => e.manager_email.toLowerCase() === effectiveUserEmail),
     hrbpEmployees: mergedEmployees.filter(e => e.hrbp_email?.toLowerCase() === effectiveUserEmail),
-    currentUserEmployee,
-    isHRBP,
+    currentUserEmployee, 
+    isHRBP, 
     isLoading,
-    refreshAdminEmployees,
   };
 };
