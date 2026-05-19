@@ -86,10 +86,16 @@ export const MidYearForm = ({
 }: MidYearFormProps) => {
   const [midYearData, setMidYearData] = React.useState<MidYearCheckin>(() => hydrateFromEmployee(employee));
 
+  // Baseline against which we detect "dirty" state. Reset when the
+  // selected employee changes so each report's form starts clean.
+  const initialDataStrRef = React.useRef<string>(JSON.stringify(midYearData));
+
   // Re-hydrate only when the selected employee changes — never on background
   // snapshot updates of the same employee, so in-progress edits are safe.
   React.useEffect(() => {
-    setMidYearData(hydrateFromEmployee(employee));
+    const next = hydrateFromEmployee(employee);
+    setMidYearData(next);
+    initialDataStrRef.current = JSON.stringify(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee.id]);
 
@@ -116,6 +122,32 @@ export const MidYearForm = ({
 
   const isFinalized = ['Submitted', 'Shared', 'Acknowledged'].includes(employee.status);
   const isShared = ['Shared', 'Acknowledged'].includes(employee.status);
+
+  // Dirty state: have we changed anything since the form was hydrated?
+  const isDirty = JSON.stringify(midYearData) !== initialDataStrRef.current;
+
+  // Autosave: debounce-save the draft 3 seconds after the user stops typing.
+  // Skip if the review is already finalized, the form is empty, or nothing
+  // has changed since the last save.
+  React.useEffect(() => {
+    if (isFinalized || !isDirty || !isDraftValid || isSavingDraft) return;
+    const timer = setTimeout(() => {
+      onSaveDraft(midYearData);
+      initialDataStrRef.current = JSON.stringify(midYearData);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [midYearData, isDirty, isDraftValid, isFinalized, isSavingDraft, onSaveDraft]);
+
+  // Warn before tab close if the user has unsaved edits.
+  React.useEffect(() => {
+    if (!isDirty || isFinalized) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty, isFinalized]);
 
   const handleRefine = async (fieldName: keyof MidYearCheckin, context: string) => {
     const text = midYearData[fieldName] as string;
@@ -193,18 +225,19 @@ export const MidYearForm = ({
     }
   };
 
-  // Last saved time display
-  const lastSavedText = React.useMemo(() => {
+  // Save indicator text — covers "saving now", "unsaved", and "saved Xm ago".
+  const saveStatusText = React.useMemo(() => {
+    if (isFinalized) return null;
+    if (isSavingDraft) return 'Saving…';
+    if (isDirty) return 'Unsaved changes — autosaving…';
     if (employee.status !== 'Draft' || !employee.updated_at) return null;
     const updatedAt = new Date(employee.updated_at);
-    const now = new Date();
-    const diffMs = now.getTime() - updatedAt.getTime();
+    const diffMs = Date.now() - updatedAt.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `Last saved ${diffMins}m ago`;
-    return `Last saved ${formatDate(employee.updated_at)}`;
-  }, [employee.updated_at, employee.status]);
+    if (diffMins < 1) return 'Saved just now';
+    if (diffMins < 60) return `Saved ${diffMins}m ago`;
+    return `Saved ${formatDate(employee.updated_at)}`;
+  }, [employee.updated_at, employee.status, isSavingDraft, isDirty, isFinalized]);
 
   const handleOverride = async (updatedData: MidYearCheckin, reason: string) => {
     if (!user || !onAdminOverride) return;
@@ -623,8 +656,11 @@ export const MidYearForm = ({
               <ShieldAlert className="w-4 h-4" />
               Calibrated ratings are hidden from employees
             </div>
-            {lastSavedText && (
-              <span className="text-[10px] font-bold text-gray-300 italic">{lastSavedText}</span>
+            {saveStatusText && (
+              <span className="text-[10px] font-bold text-gray-400 italic flex items-center gap-1.5">
+                {isSavingDraft && <Loader2 className="w-3 h-3 animate-spin" />}
+                {saveStatusText}
+              </span>
             )}
           </div>
         )}

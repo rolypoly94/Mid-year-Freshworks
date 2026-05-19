@@ -4,15 +4,17 @@ import { User } from 'firebase/auth';
 import { Card } from '../ui/Card';
 import { MidYearForm } from './MidYearForm';
 import { cn } from '../../lib/utils';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  ChevronRight, 
-  CheckCircle2, 
-  Clock, 
+import { CYCLE_NAME, formatDeadline, getDaysUntilDeadline } from '../../lib/cycle-config';
+import {
+  Users,
+  Search,
+  Plus,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
   AlertCircle,
-  Share2
+  Share2,
+  CalendarClock,
 } from 'lucide-react';
 
 interface ManagerViewProps {
@@ -57,13 +59,41 @@ export const ManagerView = React.memo(({
   showToast,
 }: ManagerViewProps) => {
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-  const filteredEmployees = employees.filter(e => 
+  const filteredEmployees = employees.filter(e =>
     e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.employee_id?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const completedCount = employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length;
+  const totalCount = employees.length;
+  const daysLeft = getDaysUntilDeadline();
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="space-y-6">
+      {totalCount > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{CYCLE_NAME} progress</p>
+            <p className="text-xl font-extrabold text-gray-900 mt-1">
+              {completedCount} of {totalCount} <span className="text-gray-400 font-bold text-sm uppercase tracking-widest ml-1">reviews submitted</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-right">
+            <CalendarClock className={cn("w-5 h-5", daysLeft <= 7 ? "text-amber-500" : "text-gray-300")} />
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cycle closes</p>
+              <p className={cn("text-sm font-extrabold", daysLeft <= 7 && daysLeft >= 0 ? "text-amber-600" : daysLeft < 0 ? "text-red-600" : "text-gray-900")}>
+                {formatDeadline()}
+                <span className="font-bold text-gray-400 ml-2">
+                  {daysLeft > 0 ? `· ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : daysLeft === 0 ? '· closes today' : '· closed'}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Sidebar: Report Selector */}
       <div className="lg:col-span-4 space-y-4">
         <Card className="flex flex-col h-[600px]">
@@ -79,13 +109,14 @@ export const ManagerView = React.memo(({
               />
             </div>
             
-            {employees.length === 0 && !isSeeding && (
-              <div 
+            {employees.length === 0 && !isSeeding && isAdmin && (
+              <div
                 onClick={onSeedData}
                 className="flex items-center gap-3 p-4 bg-blue-50 text-blue-600 rounded-2xl cursor-pointer hover:bg-blue-100 transition-all border border-blue-100 border-dashed"
+                title="Admin only — seeds a mock team for testing"
               >
                 <Plus className="w-5 h-5 font-bold" />
-                <span className="text-xs font-bold uppercase tracking-wider">Initialize Mock Team</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Initialize Mock Team (Admin)</span>
               </div>
             )}
           </div>
@@ -94,7 +125,19 @@ export const ManagerView = React.memo(({
             {filteredEmployees.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-8">
                 <Users className="w-12 h-12 text-gray-200 mb-4" />
-                <p className="text-sm font-bold text-gray-400">No reports found</p>
+                {employees.length === 0 ? (
+                  <>
+                    <p className="text-sm font-bold text-gray-500">No direct reports yet</p>
+                    <p className="text-xs text-gray-400 font-medium mt-2 max-w-xs leading-relaxed">
+                      Your direct reports will appear here once Talent Management imports the team. If your team looks wrong, ping your HRBP.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-gray-500">No matches for "{searchQuery}"</p>
+                    <p className="text-xs text-gray-400 font-medium mt-2">Try a different name or employee ID.</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -160,9 +203,13 @@ export const ManagerView = React.memo(({
             <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-gray-100">
               <Users className="w-10 h-10 text-gray-300" />
             </div>
-            <h3 className="text-3xl font-extrabold text-gray-900 mb-4 tracking-tight">Select a Direct Report</h3>
+            <h3 className="text-3xl font-extrabold text-gray-900 mb-4 tracking-tight">
+              {totalCount === 0 ? 'Nothing to review yet' : 'Pick someone to get started'}
+            </h3>
             <p className="text-gray-500 max-w-sm font-medium leading-relaxed">
-              Choose an employee from the list on the left to start or review their mid-year performance check-in.
+              {totalCount === 0
+                ? 'Your direct reports will appear here once Talent Management imports the team.'
+                : `Choose a direct report from the list on the left to write or review their ${CYCLE_NAME} check-in.`}
             </p>
           </Card>
         ) : (
@@ -181,6 +228,7 @@ export const ManagerView = React.memo(({
             showToast={showToast}
           />
         )}
+      </div>
       </div>
     </div>
   );
