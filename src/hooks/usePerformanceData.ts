@@ -35,13 +35,13 @@ export const usePerformanceData = (
   const refreshHrbpEmployees = useCallback(() => setHrbpRefreshKey(k => k + 1), []);
 
   const effectiveUserEmail = useMemo(() => {
-    if (!user) return null;
-    const email = user.email!.toLowerCase().trim();
+    if (!user || !user.email) return null;
+    const email = user.email.toLowerCase().trim();
     return (isAdmin && proxyEmail) ? proxyEmail.toLowerCase().trim() : email;
   }, [user, isAdmin, proxyEmail]);
 
   useEffect(() => {
-    if (!user || !effectiveUserEmail) {
+    if (!user || !user.email || !effectiveUserEmail) {
       setEmployees([]);
       setManagerEmployees([]);
       setHrbpEmployees([]);
@@ -174,7 +174,8 @@ export const usePerformanceData = (
     }
 
     return list.map(emp => {
-      const privateData = privateDataMap[emp.employee_email.toLowerCase()];
+      const emailKey = emp.employee_email?.toLowerCase() || '';
+      const privateData = emailKey ? privateDataMap[emailKey] : null;
       if (privateData) {
         const midYear = emp.mid_year_checkin || {
           key_contributions: '',
@@ -199,7 +200,7 @@ export const usePerformanceData = (
 
   return {
     employees: mergedEmployees,
-    managerEmployees: mergedEmployees.filter(e => e.manager_email.toLowerCase() === effectiveUserEmail),
+    managerEmployees: mergedEmployees.filter(e => e.manager_email?.toLowerCase() === effectiveUserEmail),
     hrbpEmployees: mergedEmployees.filter(e => e.hrbp_email?.toLowerCase() === effectiveUserEmail),
     currentUserEmployee,
     isHRBP,

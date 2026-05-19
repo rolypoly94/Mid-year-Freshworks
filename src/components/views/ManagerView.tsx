@@ -60,8 +60,8 @@ export const ManagerView = React.memo(({
 }: ManagerViewProps) => {
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
   const filteredEmployees = employees.filter(e =>
-    e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.employee_id?.toLowerCase().includes(searchQuery.toLowerCase())
+    (e.employee_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (e.employee_id?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   const completedCount = employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length;
@@ -173,16 +173,16 @@ export const ManagerView = React.memo(({
                     </div>
                     <div className="flex items-center gap-2">
                        {emp.status === 'Acknowledged' ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : emp.status === 'Shared' ? (
-                        <Share2 className="w-4 h-4 text-blue-500" />
-                      ) : emp.status === 'Submitted' ? (
-                        <CheckCircle2 className="w-4 h-4 text-indigo-500" />
-                      ) : emp.status === 'Draft' ? (
-                        <Clock className="w-4 h-4 text-amber-500" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-gray-300" />
-                      )}
+                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                       ) : emp.status === 'Shared' ? (
+                         <Share2 className="w-4 h-4 text-blue-500" />
+                       ) : emp.status === 'Submitted' ? (
+                         <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+                       ) : emp.status === 'Draft' ? (
+                         <Clock className="w-4 h-4 text-amber-500" />
+                       ) : (
+                         <AlertCircle className="w-4 h-4 text-gray-300" />
+                       )}
                       <ChevronRight className={cn(
                         "w-4 h-4 transition-all",
                         selectedEmployeeId === emp.id ? "text-blue-600 translate-x-1" : "text-gray-300 group-hover:text-gray-400"
