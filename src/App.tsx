@@ -28,8 +28,24 @@ const ViewFallback = () => (
   </div>
 );
 
+// Narrow screens get a graceful "use a laptop" message instead of a broken
+// layout. Mid-year forms have a lot of fields and are not designed for phones.
+const useIsNarrowScreen = (breakpointPx = 768) => {
+  const [isNarrow, setIsNarrow] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(`(max-width: ${breakpointPx}px)`).matches
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpointPx}px)`);
+    const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [breakpointPx]);
+  return isNarrow;
+};
+
 const App = () => {
   // --- Auth & State ---
+  const isNarrow = useIsNarrowScreen();
   const { user, isAdmin, isAdminLoaded, isAuthReady, login, logout } = useAuth();
   const [proxyEmail, setProxyEmail] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -144,6 +160,22 @@ const App = () => {
     XLSX.utils.book_append_sheet(wb, wsTemplate, 'Data Template');
     XLSX.writeFile(wb, 'MidYear_Import_Template.xlsx');
   };
+
+  if (isNarrow) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 text-center">
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-[2.5rem] shadow-2xl shadow-blue-200 mb-8">
+          <Target className="w-10 h-10 text-white" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-3">
+          Open this on a larger screen
+        </h1>
+        <p className="text-gray-500 font-medium leading-relaxed max-w-sm">
+          The portal is designed for laptops and tablets. Mid-year reviews deserve more room than a phone screen — open this link from your computer.
+        </p>
+      </div>
+    );
+  }
 
   if (!isAuthReady || (user && !isAdminLoaded)) {
     return (
