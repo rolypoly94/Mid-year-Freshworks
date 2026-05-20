@@ -122,11 +122,11 @@ export const usePerformanceData = (
     );
 
     // Fetch Manager Private Data
-    // We can use a collectionGroup query if allowed, but for simplicity we'll fetch them individually for the lists
-    // Actually, security rules allow reading them if manager_email matches.
-    // A collectionGroup query on 'manager_private' where manager_email == effectiveUserEmail would be best.
-    // However, it requires an index. I'll stick to fetching manually for now OR assume I can fetch all.
-    // Let's try collectionGroup as it's cleaner if indexed.
+    // Collection-group query for the private compartment of each employee
+    // record (ratings, promotion readiness, calibration notes). Requires the
+    // collection-group-scoped indexes on `manager_email` and `hrbp_email`
+    // declared in firestore.indexes.json — without them this query silently
+    // returns nothing and managers see blank ratings.
     let qPrivate;
     if (isAdmin) {
       qPrivate = query(collectionGroup(db, 'manager_private'));
@@ -136,20 +136,33 @@ export const usePerformanceData = (
         where('hrbp_email', '==', effectiveUserEmail)
       ));
     }
-    const unsubPrivate = onSnapshot(qPrivate, (snapshot) => {
-      const mapping: Record<string, ManagerPrivateData> = {};
-      snapshot.docs.forEach(doc => {
-        // The parent path is /employees/{email}/manager_private/current
-        const email = doc.ref.parent.parent?.id;
-        if (email) {
-          mapping[email] = doc.data() as ManagerPrivateData;
+    const unsubPrivate = onSnapshot(
+      qPrivate,
+      (snapshot) => {
+        const mapping: Record<string, ManagerPrivateData> = {};
+        snapshot.docs.forEach(doc => {
+          // The parent path is /employees/{email}/manager_private/current
+          const email = doc.ref.parent.parent?.id;
+          if (email) {
+            mapping[email] = doc.data() as ManagerPrivateData;
+          }
+        });
+        setPrivateDataMap(prev => ({ ...prev, ...mapping }));
+      },
+      (error) => {
+        console.error('manager_private collectionGroup query failed:', error);
+        // failed-precondition usually means a Firestore index is missing for
+        // this query — surface it so we don't ship the app with managers
+        // seeing blank ratings and no idea why.
+        const code = (error as { code?: string }).code;
+        if (code === 'failed-precondition') {
+          showToast?.('Ratings can\'t load — a Firestore index is missing. Please contact your admin.', 'error');
+        } else if (code !== 'permission-denied') {
+          // permission-denied is expected for non-managers; don't toast.
+          showToast?.('Couldn\'t load private review data. Try refreshing.', 'error');
         }
-      });
-      setPrivateDataMap(prev => ({ ...prev, ...mapping }));
-    }, (error) => {
-      console.warn('Private data access restricted or index missing:', error);
-      // Fallback is okay, the form will fetch its own if needed
-    });
+      },
+    );
 
     return () => {
       cancelled = true;
