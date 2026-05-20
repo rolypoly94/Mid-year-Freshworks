@@ -1,5 +1,7 @@
 {
+  "_note": "The `firestore` section here uses the Standard Firestore index format. The live database `ai-studio-90e41d69-...` runs on Firestore Enterprise Edition (provisioned by AI Studio), which manages indexes automatically and does NOT accept fieldOverrides via `firebase deploy`. These files are kept for documentation and for any future Standard-Firestore environment. Do not retry `firebase deploy --only firestore:indexes` against the Enterprise DB — it will return HTTP 400 'Enterprise Edition does not support updating field index configuration.' If a real index-related failure shows up in the app, the user-visible toast in usePerformanceData.ts will surface it.",
   "firestore": {
+    "database": "ai-studio-90e41d69-1ecc-46bd-8479-e8a75651f83f",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   }
