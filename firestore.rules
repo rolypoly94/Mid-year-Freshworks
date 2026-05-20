@@ -104,17 +104,20 @@ service cloud.firestore {
                     ));
                     
       allow delete: if isAdmin();
+    }
 
-      match /manager_private/{docId} {
-        allow read: if isAdmin() || (isFreshworksEmployee() && (
-          get(/databases/$(database)/documents/employees/$(employeeId)).data.manager_email == email() ||
-          get(/databases/$(database)/documents/employees/$(employeeId)).data.get('hrbp_email', '') == email()
-        ));
-        allow write: if isAdmin() || (isFreshworksEmployee() && (
-          get(/databases/$(database)/documents/employees/$(employeeId)).data.manager_email == email() &&
-          isValidManagerPrivate(request.resource.data)
-        ));
-      }
+    // Consolidate manager_private rules for collectionGroup support
+    match /{path=**}/manager_private/{docId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.manager_email == email() || 
+        resource.data.get('hrbp_email', '') == email()
+      );
+      allow write: if isAdmin() || (isFreshworksEmployee() && (
+        // path[1] is the parent employee document ID
+        get(/databases/$(database)/documents/employees/$(path[1])).data.manager_email == email() &&
+        isValidManagerPrivate(request.resource.data)
+      ));
     }
 
     match /import_audit/{auditId} {

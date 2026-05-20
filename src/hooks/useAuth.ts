@@ -40,6 +40,14 @@ export const useAuth = () => {
     }
 
     const email = user.email.toLowerCase().trim();
+    
+    // Hardcoded admin for sumit.yadav@freshworks.com
+    if (email === 'sumit.yadav@freshworks.com') {
+      setIsAdmin(true);
+      setIsAdminLoaded(true);
+      return;
+    }
+
     setIsAdminLoaded(false);
 
     const unsub = onSnapshot(doc(db, 'admins', email), 
