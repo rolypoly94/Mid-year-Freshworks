@@ -36,9 +36,9 @@ const RATING_ORDER = [
 ];
 
 const RATING_TARGETS = {
-  'Does Not Deliver Results': { min: 4, max: 6, label: 'DNDR' },
-  'Delivers Some Results':    { min: 4, max: 6, label: 'DSR' },
-  'Delivers Full Results':    { min: 60, max: 70, label: 'DFR' },
+  'Does Not Deliver Results': { min: 4, max: 6, label: 'Does Not Deliver Results' },
+  'Delivers Some Results':    { min: 4, max: 6, label: 'Delivers Some Results' },
+  'Delivers Full Results':    { min: 60, max: 70, label: 'Delivers Full Results' },
   'Exceeds Results':          { min: 10, max: 15, label: 'Exceeds' },
   'Exceptional Results':      { min: 5, max: 10, label: 'Exceptional' },
 };
