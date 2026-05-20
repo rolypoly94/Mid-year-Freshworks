@@ -15,7 +15,7 @@ import { Bar } from 'react-chartjs-2';
 import { Employee } from '../../types';
 import { Card } from '../ui/Card';
 import { cn } from '../../lib/utils';
-import { AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle, Clock, Info } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -98,6 +98,11 @@ const guidelineBandsPlugin: Plugin<'bar'> = {
   }
 };
 
+// Below this many submitted reviews, we still show the chart but label it
+// preliminary — a single rating shifts a small distribution dramatically, so
+// readers should know the picture isn't statistically stable yet.
+const PRELIMINARY_THRESHOLD = 10;
+
 export const CalibrationChart = ({ employees, scopeLabel, ratingField = 'performance_trending_rating' }: Props) => {
   const stats = useMemo(() => {
     const calibrationStatuses = ['Submitted', 'Shared', 'Acknowledged'];
@@ -109,8 +114,11 @@ export const CalibrationChart = ({ employees, scopeLabel, ratingField = 'perform
     const totalSubmitted = submittedReviews.length;
     const totalCount = employees.length;
 
-    if (totalSubmitted < 10) {
-      return { totalSubmitted, totalCount, isFallback: true };
+    // Only fall back to the "nothing yet" card when there is literally zero
+    // data to plot. For 1..PRELIMINARY_THRESHOLD-1 submissions we still draw
+    // the chart but with an inline caveat banner.
+    if (totalSubmitted === 0) {
+      return { totalSubmitted, totalCount, isFallback: true, isPreliminary: false };
     }
 
     const distribution = RATING_ORDER.map(rating => {
@@ -129,7 +137,13 @@ export const CalibrationChart = ({ employees, scopeLabel, ratingField = 'perform
       };
     });
 
-    return { totalSubmitted, totalCount, distribution, isFallback: false };
+    return {
+      totalSubmitted,
+      totalCount,
+      distribution,
+      isFallback: false,
+      isPreliminary: totalSubmitted < PRELIMINARY_THRESHOLD,
+    };
   }, [employees, ratingField]);
 
   if (stats.isFallback) {
@@ -141,8 +155,8 @@ export const CalibrationChart = ({ employees, scopeLabel, ratingField = 'perform
         <div>
           <h3 className="text-lg font-bold text-slate-900 leading-tight">Awaiting Submissions</h3>
           <p className="text-sm text-slate-500 mt-1 max-w-xs mx-auto">
-            Calibration view appears once at least 10 reviews are submitted in this scope. 
-            Currently <span className="font-bold text-blue-600">{stats.totalSubmitted}</span> of <span className="font-bold">{stats.totalCount}</span> submitted.
+            Calibration view appears once at least one review has been submitted in this scope.
+            Currently <span className="font-bold text-blue-600">0</span> of <span className="font-bold">{stats.totalCount}</span> submitted.
           </p>
         </div>
       </Card>
@@ -207,6 +221,14 @@ export const CalibrationChart = ({ employees, scopeLabel, ratingField = 'perform
 
   return (
     <Card className="p-8" data-testid="calibration-chart">
+      {stats.isPreliminary && (
+        <div className="flex items-start gap-3 mb-6 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-100">
+          <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs font-medium text-amber-800 leading-relaxed">
+            <span className="font-bold">Preliminary.</span> Based on {stats.totalSubmitted} submitted review{stats.totalSubmitted === 1 ? '' : 's'}. A single rating can shift each band by {Math.round(100 / stats.totalSubmitted)}% at this sample size — the distribution becomes more reliable as more reviews come in.
+          </p>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
           <h3 className="text-xl font-bold text-gray-900 tracking-tight">{scopeLabel}</h3>
