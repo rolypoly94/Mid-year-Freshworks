@@ -123,10 +123,13 @@ export const usePerformanceData = (
 
     // Fetch Manager Private Data
     // Collection-group query for the private compartment of each employee
-    // record (ratings, promotion readiness, calibration notes). Requires the
-    // collection-group-scoped indexes on `manager_email` and `hrbp_email`
-    // declared in firestore.indexes.json — without them this query silently
-    // returns nothing and managers see blank ratings.
+    // record (ratings, promotion readiness, calibration notes). On Standard
+    // Firestore this requires the collection-group-scoped indexes on
+    // `manager_email` and `hrbp_email` declared in firestore.indexes.json.
+    // The production database is on Firestore Enterprise Edition, which
+    // auto-indexes and does not accept fieldOverrides via the CLI — see the
+    // _note in firestore.indexes.json. Either way, the toast below surfaces
+    // failed-precondition errors so we don't silently show blank ratings.
     let qPrivate;
     if (isAdmin) {
       qPrivate = query(collectionGroup(db, 'manager_private'));

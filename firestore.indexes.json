@@ -1,4 +1,5 @@
 {
+  "_note": "These collection-group index exemptions are required by Standard Firestore for the `manager_private` collectionGroup queries in src/hooks/usePerformanceData.ts (filtering by manager_email and hrbp_email). The current production database is on Firestore Enterprise Edition, which auto-indexes and rejects this file via `firebase deploy` with HTTP 400. We keep the file as documentation of the required indexes — useful if the project is ever migrated to Standard Firestore, or as a reference for anyone debugging why a collectionGroup query is failing. The in-app toast in usePerformanceData.ts surfaces failed-precondition errors so a real missing-index failure won't be silent.",
   "indexes": [],
   "fieldOverrides": [
     {
