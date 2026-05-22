@@ -32,11 +32,14 @@ export function buildReleaseDM(employee: Employee) {
   };
 }
 
-// Read-only modal showing the released feedback. Submitting "Acknowledge"
-// fires a view_submission interaction handled in /api/slack/interact.
+// Read-only modal showing the released feedback. If the employee has not
+// yet acknowledged, the modal includes a submit button ("Acknowledge") that
+// fires a view_submission handled in /api/slack/interact. If already
+// acknowledged, the modal is purely informational with only a Close button.
 export function buildFeedbackModal(employee: Employee) {
   const c: MidYearCheckin | undefined = employee.mid_year_checkin;
   const managerName = employee.manager_name || 'your manager';
+  const isAcknowledged = !!employee.acknowledged_at;
 
   const section = (label: string, body: string | undefined) => ({
     type: 'section',
@@ -66,25 +69,47 @@ export function buildFeedbackModal(employee: Employee) {
   }
 
   blocks.push({ type: 'divider' });
-  blocks.push({
-    type: 'context',
-    elements: [
-      {
-        type: 'mrkdwn',
-        text: 'Clicking *Acknowledge* records that you have read this feedback.',
-      },
-    ],
-  });
 
-  return {
+  if (isAcknowledged) {
+    const when = employee.acknowledged_at
+      ? new Date(employee.acknowledged_at).toLocaleString()
+      : '';
+    blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `✅ *Already acknowledged*${when ? ` on ${when}` : ''}.`,
+        },
+      ],
+    });
+  } else {
+    blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: 'Clicking *Acknowledge* records that you have read this feedback.',
+        },
+      ],
+    });
+  }
+
+  const modal: any = {
     type: 'modal',
-    callback_id: 'acknowledge_feedback',
     private_metadata: employee.employee_email.toLowerCase(),
     title: { type: 'plain_text', text: 'Mid-year check-in' },
-    submit: { type: 'plain_text', text: 'Acknowledge' },
     close: { type: 'plain_text', text: 'Close' },
     blocks,
   };
+
+  // Only attach the submit handler when an acknowledgement is still pending.
+  if (!isAcknowledged) {
+    modal.callback_id = 'acknowledge_feedback';
+    modal.submit = { type: 'plain_text', text: 'Acknowledge' };
+  }
+
+  return modal;
 }
 
 // Replacement modal shown after Acknowledge succeeds.
