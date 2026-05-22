@@ -10,12 +10,19 @@ import {
   buildReleaseDM,
   buildFeedbackModal,
   buildAckSuccessModal,
+  buildPendingReportsModal,
+  buildDraftReviewModal,
+  buildDraftSavedModal,
+  buildLockedReviewModal,
+  buildSharedModal,
+  RATING_OPTIONS,
 } from './src/lib/slack-blocks';
 import {
   lookupByEmail as slackLookupByEmail,
   getUserEmail as slackGetUserEmail,
   postDirectMessage as slackPostDM,
   openView as slackOpenView,
+  updateView as slackUpdateView,
   verifySlackSignature,
 } from './src/lib/slack';
 
@@ -315,9 +322,24 @@ async function startServer() {
 
   async function handleBlockActions(payload: any, res: any) {
     const action = payload.actions?.[0];
-    if (!action || action.action_id !== 'open_feedback') {
-      return res.status(200).send('');
+    if (!action) return res.status(200).send('');
+
+    switch (action.action_id) {
+      case 'open_feedback':
+        return handleOpenFeedback(payload, action, res);
+      case 'start_draft':
+        return handleStartDraft(payload, action, res);
+      case 'view_locked_review':
+        return handleViewLocked(payload, action, res);
+      case 'share_now':
+        return handleShareNow(payload, action, res);
+      default:
+        return res.status(200).send('');
     }
+  }
+
+  // Employee clicks "Open feedback" in the release DM.
+  async function handleOpenFeedback(payload: any, action: any, res: any) {
     if (!db) return res.status(503).send('');
 
     const employeeEmail = String(action.value || '').toLowerCase();
@@ -346,8 +368,162 @@ async function startServer() {
     }
   }
 
+  // Manager picks a report from the /midyear list to start (or continue) a draft.
+  // We update the existing pending-reports modal in-place with the draft form.
+  async function handleStartDraft(payload: any, action: any, res: any) {
+    if (!db) return res.status(503).send('');
+
+    const employeeEmail = String(action.value || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    const viewId = payload.view?.id;
+    if (!employeeEmail || !slackUserId || !viewId) return res.status(400).send('Bad payload');
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail) return res.status(403).send('No email');
+
+    const docSnap = await db.collection('employees').doc(employeeEmail).get();
+    if (!docSnap.exists) return res.status(404).send('Employee not found');
+    const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+    if (employee.manager_email?.toLowerCase() !== callerEmail) {
+      return res.status(403).send('Not the manager');
+    }
+
+    // Once shared, edits must happen in the web portal (audit reasons).
+    if (employee.status === 'Shared' || employee.status === 'Acknowledged') {
+      res.status(200).send('');
+      try {
+        await slackUpdateView(viewId, buildLockedReviewModal(employee));
+      } catch (err) {
+        console.error('views.update (locked) failed:', err);
+      }
+      return;
+    }
+
+    // Pull current private data (rating) so we can pre-populate.
+    let privateData: any = null;
+    try {
+      const priv = await db
+        .collection('employees').doc(employeeEmail)
+        .collection('manager_private').doc('current').get();
+      if (priv.exists) privateData = priv.data();
+    } catch (err) {
+      console.warn('Failed to fetch manager_private (continuing):', err);
+    }
+
+    res.status(200).send('');
+    try {
+      await slackUpdateView(
+        viewId,
+        buildDraftReviewModal(employee, employee.mid_year_checkin, privateData),
+      );
+    } catch (err) {
+      console.error('views.update (draft form) failed:', err);
+    }
+  }
+
+  // Manager clicks "View" on an already-shared report — read-only modal.
+  async function handleViewLocked(payload: any, action: any, res: any) {
+    if (!db) return res.status(503).send('');
+
+    const employeeEmail = String(action.value || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    const viewId = payload.view?.id;
+    if (!employeeEmail || !slackUserId || !viewId) return res.status(400).send('Bad payload');
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail) return res.status(403).send('No email');
+
+    const docSnap = await db.collection('employees').doc(employeeEmail).get();
+    if (!docSnap.exists) return res.status(404).send('Employee not found');
+    const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+    if (employee.manager_email?.toLowerCase() !== callerEmail) {
+      return res.status(403).send('Not the manager');
+    }
+
+    res.status(200).send('');
+    try {
+      await slackUpdateView(viewId, buildLockedReviewModal(employee));
+    } catch (err) {
+      console.error('views.update (locked) failed:', err);
+    }
+  }
+
+  // Manager clicks "Share with employee now" inside the Saved/Submitted modal.
+  async function handleShareNow(payload: any, action: any, res: any) {
+    if (!db) return res.status(503).send('');
+    if (!process.env.SLACK_BOT_TOKEN) return res.status(503).send('Slack not configured');
+
+    const employeeEmail = String(action.value || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    const viewId = payload.view?.id;
+    if (!employeeEmail || !slackUserId || !viewId) return res.status(400).send('Bad payload');
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail) return res.status(403).send('No email');
+
+    const docRef = db.collection('employees').doc(employeeEmail);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return res.status(404).send('Employee not found');
+    const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+    if (employee.manager_email?.toLowerCase() !== callerEmail) {
+      return res.status(403).send('Not the manager');
+    }
+
+    // Only Submitted reviews can be shared.
+    if (employee.status !== 'Submitted') {
+      res.status(200).send('');
+      try {
+        await slackUpdateView(viewId, buildSharedModal(employee));
+      } catch (err) {
+        console.error('views.update (already shared) failed:', err);
+      }
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    await docRef.update({
+      status: 'Shared',
+      'mid_year_checkin.shared_at': timestamp,
+      'mid_year_checkin.shared_by': callerEmail,
+    });
+
+    await db.collection('employee_audit').add({
+      employee_id: employeeEmail,
+      actor_email: callerEmail,
+      actor_name: payload.user?.username || null,
+      event_type: 'shared',
+      timestamp,
+      notes: 'Shared via Slack',
+    });
+
+    // Fire the existing release DM (best-effort).
+    try {
+      const slackUser = await slackLookupByEmail(employeeEmail);
+      if (slackUser) {
+        const dm = buildReleaseDM({ ...employee, status: 'Shared' });
+        await slackPostDM(slackUser.id, dm.text, dm.blocks);
+      }
+    } catch (err) {
+      console.warn('Release DM failed (share itself succeeded):', err);
+    }
+
+    res.status(200).send('');
+    try {
+      await slackUpdateView(viewId, buildSharedModal(employee));
+    } catch (err) {
+      console.error('views.update (shared) failed:', err);
+    }
+  }
+
   async function handleViewSubmission(payload: any, res: any) {
-    if (payload.view?.callback_id !== 'acknowledge_feedback') {
+    const cbId = payload.view?.callback_id;
+    if (cbId === 'submit_draft_review') {
+      return handleSubmitDraftReview(payload, res);
+    }
+    if (cbId !== 'acknowledge_feedback') {
       return res.status(200).send('');
     }
     if (!db) return res.status(503).send('');
@@ -403,6 +579,192 @@ async function startServer() {
       view: buildAckSuccessModal(),
     });
   }
+
+  // Manager submits the draft form modal.
+  async function handleSubmitDraftReview(payload: any, res: any) {
+    if (!db) return res.status(503).send('');
+
+    const employeeEmail = String(payload.view?.private_metadata || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    if (!employeeEmail || !slackUserId) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { key_contributions_block: 'Missing context — close and try again' },
+      });
+    }
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { key_contributions_block: 'Could not verify your Slack identity' },
+      });
+    }
+
+    const docRef = db.collection('employees').doc(employeeEmail);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { key_contributions_block: 'Employee not found in the system' },
+      });
+    }
+    const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+    if (employee.manager_email?.toLowerCase() !== callerEmail) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { key_contributions_block: 'You are not this employee’s manager' },
+      });
+    }
+
+    if (employee.status === 'Shared' || employee.status === 'Acknowledged') {
+      return res.status(200).json({
+        response_action: 'update',
+        view: buildLockedReviewModal(employee),
+      });
+    }
+
+    // Pull form values from the submitted view state.
+    const values = payload.view?.state?.values || {};
+    const keyContributions = String(
+      values?.key_contributions_block?.key_contributions?.value || '',
+    ).trim();
+    const development = String(
+      values?.development_evolution_block?.development_evolution?.value || '',
+    ).trim();
+    const ratingValue = String(
+      values?.rating_block?.rating?.selected_option?.value || '',
+    );
+    const saveMode = String(
+      values?.save_mode_block?.save_mode?.selected_option?.value || 'Draft',
+    );
+
+    const isFinal = saveMode === 'Submitted';
+
+    // Validate when submitting (not when drafting).
+    if (isFinal) {
+      const errors: Record<string, string> = {};
+      if (!keyContributions) errors.key_contributions_block = 'Required to submit';
+      if (!development) errors.development_evolution_block = 'Required to submit';
+      if (!ratingValue) errors.rating_block = 'Pick a rating to submit';
+      if (Object.keys(errors).length > 0) {
+        return res.status(200).json({ response_action: 'errors', errors });
+      }
+    }
+
+    if (ratingValue && !(RATING_OPTIONS as readonly string[]).includes(ratingValue)) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { rating_block: 'Invalid rating value' },
+      });
+    }
+
+    const timestamp = new Date().toISOString();
+    const existing = (employee.mid_year_checkin || {}) as any;
+
+    // Mirror the saveFeedback logic in usePerformanceActions.ts:
+    //  - public doc stores text + status
+    //  - subcollection holds the trending rating (manager-private)
+    const publicUpdate: any = {
+      mid_year_checkin: {
+        ...existing,
+        key_contributions: keyContributions,
+        development_evolution: development,
+        submitted_at: isFinal
+          ? timestamp
+          : existing.submitted_at || null,
+      },
+      status: saveMode,
+      updated_at: timestamp,
+    };
+    await docRef.update(publicUpdate);
+
+    const privateRef = docRef.collection('manager_private').doc('current');
+    await privateRef.set(
+      {
+        performance_trending_rating: ratingValue || '',
+        promotion_readiness: null,
+        additional_notes: '',
+        updated_at: timestamp,
+        manager_email: callerEmail,
+        hrbp_email: (employee.hrbp_email || '').toLowerCase(),
+      },
+      { merge: true },
+    );
+
+    if (isFinal) {
+      await db.collection('employee_audit').add({
+        employee_id: employeeEmail,
+        actor_email: callerEmail,
+        actor_name: payload.user?.username || null,
+        event_type: 'submit',
+        timestamp,
+        notes: 'Submitted via Slack',
+      });
+    }
+
+    return res.status(200).json({
+      response_action: 'update',
+      view: buildDraftSavedModal(
+        { ...employee, status: saveMode } as any,
+        isFinal ? 'Submitted' : 'Draft',
+      ),
+    });
+  }
+
+  // --- Slack slash command: /midyear ---
+  // Opens a modal listing the manager's direct reports with "Draft" buttons.
+  app.post(
+    '/api/slack/commands',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    async (req, res) => {
+      const rawBody = (req.body as Buffer)?.toString('utf8') || '';
+      const timestamp = req.header('x-slack-request-timestamp') || undefined;
+      const signature = req.header('x-slack-signature') || undefined;
+
+      if (!verifySlackSignature(rawBody, timestamp, signature)) {
+        return res.status(401).send('Invalid signature');
+      }
+
+      const params = new URLSearchParams(rawBody);
+      const command = params.get('command');
+      const userId = params.get('user_id');
+      const triggerId = params.get('trigger_id');
+
+      if (command !== '/midyear') return res.status(200).send('');
+      if (!userId || !triggerId) return res.status(400).send('Bad payload');
+
+      // Ack immediately so we don't blow the 3s budget.
+      res.status(200).send('');
+
+      try {
+        const managerEmail = await slackGetUserEmail(userId);
+        if (!managerEmail || !managerEmail.endsWith('@freshworks.com')) {
+          console.warn('/midyear: unauthorized user', userId, managerEmail);
+          return;
+        }
+        if (!db) {
+          console.error('/midyear: database unavailable');
+          return;
+        }
+
+        const snap = await db
+          .collection('employees')
+          .where('manager_email', '==', managerEmail)
+          .get();
+
+        const reports = snap.docs.map((d: any) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        await slackOpenView(triggerId, buildPendingReportsModal(reports as any));
+      } catch (err) {
+        console.error('/midyear command failed:', err);
+      }
+    },
+  );
 
   // --- Vite Middleware ---
 

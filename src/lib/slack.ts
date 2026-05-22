@@ -75,6 +75,14 @@ export async function openView(triggerId: string, view: any) {
   return slackPost('views.open', { trigger_id: triggerId, view });
 }
 
+export async function updateView(viewId: string, view: any) {
+  return slackPost('views.update', { view_id: viewId, view });
+}
+
+export async function pushView(triggerId: string, view: any) {
+  return slackPost('views.push', { trigger_id: triggerId, view });
+}
+
 // HMAC verification per https://api.slack.com/authentication/verifying-requests-from-slack
 // Caller must pass the *raw* request body (string) — Express's JSON parser strips it.
 export function verifySlackSignature(
