@@ -14,11 +14,11 @@ oauth_config:
       - users:read.email
 settings:
   event_subscriptions:
-    request_url: https://REPLACE_WITH_YOUR_SERVER_URL/api/slack/events
+    request_url: https://https://ais-pre-rc3dbzolwmx3igpdbn5uh5-498778706336.asia-east1.run.app/api/slack/events
     bot_events: []
   interactivity:
     is_enabled: true
-    request_url: https://REPLACE_WITH_YOUR_SERVER_URL/api/slack/interact
+    request_url: https://https://ais-pre-rc3dbzolwmx3igpdbn5uh5-498778706336.asia-east1.run.app/api/slack/interact
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
