@@ -110,7 +110,32 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
       
       await addDoc(auditRef, auditEntry);
 
-      showToast('Review shared with employee successfully!', 'success');
+      // Fire-and-forget Slack notification. The share itself has already
+      // succeeded, so a Slack failure must not fail the user-facing action —
+      // we just log it and show a softer success message.
+      let slackNotified = false;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/slack/notify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ employee_email: employeeId }),
+        });
+        if (res.ok) slackNotified = true;
+        else console.warn('Slack notify returned', res.status, await res.text());
+      } catch (slackErr) {
+        console.warn('Slack notify failed (review still shared):', slackErr);
+      }
+
+      showToast(
+        slackNotified
+          ? 'Review shared with employee and Slack notification sent.'
+          : 'Review shared with employee successfully!',
+        'success',
+      );
       return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `employees/${employeeId}`);

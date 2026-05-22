@@ -6,6 +6,18 @@ import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
+import {
+  buildReleaseDM,
+  buildFeedbackModal,
+  buildAckSuccessModal,
+} from './src/lib/slack-blocks';
+import {
+  lookupByEmail as slackLookupByEmail,
+  getUserEmail as slackGetUserEmail,
+  postDirectMessage as slackPostDM,
+  openView as slackOpenView,
+  verifySlackSignature,
+} from './src/lib/slack';
 
 // Initialize Gemini Client Lazily
 let genAI: GoogleGenAI | null = null;
@@ -212,6 +224,185 @@ async function startServer() {
       res.status(500).json({ error: 'Failed to send reminders' });
     }
   });
+
+  // --- Slack API Routes ---
+
+  // Caller (web app) hits this after a manager flips status to 'Shared'.
+  // We re-verify on the server that the caller is actually the manager
+  // (or an admin) before DM'ing the employee on Slack.
+  app.post('/api/slack/notify', requireAuth, async (req, res) => {
+    if (!db) return res.status(503).json({ error: 'Database service not available' });
+    if (!process.env.SLACK_BOT_TOKEN) {
+      return res.status(503).json({ error: 'Slack integration not configured' });
+    }
+
+    const employeeEmail = String(req.body?.employee_email || '').toLowerCase().trim();
+    if (!employeeEmail) return res.status(400).json({ error: 'employee_email is required' });
+
+    try {
+      const docSnap = await db.collection('employees').doc(employeeEmail).get();
+      if (!docSnap.exists) return res.status(404).json({ error: 'Employee not found' });
+      const employee = { id: docSnap.id, ...docSnap.data() };
+
+      // Authorise: caller must be the manager, the HRBP, or an admin.
+      const caller = (req as any).userEmail;
+      const isCallerAdmin = (await db.collection('admins').doc(caller).get()).exists;
+      const isCallerManager = employee.manager_email?.toLowerCase() === caller;
+      const isCallerHRBP = employee.hrbp_email?.toLowerCase() === caller;
+      if (!isCallerAdmin && !isCallerManager && !isCallerHRBP) {
+        return res.status(403).json({ error: 'Not authorised to notify this employee' });
+      }
+
+      if (employee.status !== 'Shared') {
+        return res.status(409).json({ error: `Feedback is not in Shared state (status=${employee.status})` });
+      }
+
+      const slackUser = await slackLookupByEmail(employeeEmail);
+      if (!slackUser) {
+        return res.status(404).json({ error: 'Employee not found in Slack' });
+      }
+
+      const dm = buildReleaseDM(employee as any);
+      await slackPostDM(slackUser.id, dm.text, dm.blocks);
+      res.json({ ok: true, notified: slackUser.id });
+    } catch (err: any) {
+      console.error('Slack notify failed:', err);
+      res.status(500).json({ error: err?.message || 'Slack notify failed' });
+    }
+  });
+
+  // Slack interactivity (button clicks, modal submissions). Signature-verified
+  // against SLACK_SIGNING_SECRET. We use a raw body parser here because the
+  // HMAC must run over the exact bytes Slack sent.
+  app.post(
+    '/api/slack/interact',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    async (req, res) => {
+      const rawBody = (req.body as Buffer)?.toString('utf8') || '';
+      const timestamp = req.header('x-slack-request-timestamp') || undefined;
+      const signature = req.header('x-slack-signature') || undefined;
+
+      if (!verifySlackSignature(rawBody, timestamp, signature)) {
+        return res.status(401).send('Invalid signature');
+      }
+
+      const params = new URLSearchParams(rawBody);
+      const payloadStr = params.get('payload');
+      if (!payloadStr) return res.status(400).send('Missing payload');
+
+      let payload: any;
+      try {
+        payload = JSON.parse(payloadStr);
+      } catch {
+        return res.status(400).send('Invalid payload JSON');
+      }
+
+      try {
+        if (payload.type === 'block_actions') {
+          return await handleBlockActions(payload, res);
+        }
+        if (payload.type === 'view_submission') {
+          return await handleViewSubmission(payload, res);
+        }
+        // Unhandled interaction type — ack so Slack doesn't retry.
+        return res.status(200).send('');
+      } catch (err: any) {
+        console.error('Slack interact failed:', err);
+        return res.status(500).send('Internal error');
+      }
+    },
+  );
+
+  async function handleBlockActions(payload: any, res: any) {
+    const action = payload.actions?.[0];
+    if (!action || action.action_id !== 'open_feedback') {
+      return res.status(200).send('');
+    }
+    if (!db) return res.status(503).send('');
+
+    const employeeEmail = String(action.value || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    if (!employeeEmail || !slackUserId) return res.status(400).send('Bad payload');
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail || callerEmail !== employeeEmail) {
+      return res.status(403).send('Not the owner');
+    }
+
+    const docSnap = await db.collection('employees').doc(employeeEmail).get();
+    if (!docSnap.exists) return res.status(404).send('Employee not found');
+    const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+    if (employee.status !== 'Shared' && employee.status !== 'Acknowledged') {
+      return res.status(409).send('Feedback not yet shared');
+    }
+
+    // Open modal — must respond within 3s, so ack first then call views.open.
+    res.status(200).send('');
+    try {
+      await slackOpenView(payload.trigger_id, buildFeedbackModal(employee));
+    } catch (err) {
+      console.error('views.open failed:', err);
+    }
+  }
+
+  async function handleViewSubmission(payload: any, res: any) {
+    if (payload.view?.callback_id !== 'acknowledge_feedback') {
+      return res.status(200).send('');
+    }
+    if (!db) return res.status(503).send('');
+
+    const employeeEmail = String(payload.view.private_metadata || '').toLowerCase();
+    const slackUserId = payload.user?.id;
+    if (!employeeEmail || !slackUserId) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { _: 'Bad request' },
+      });
+    }
+
+    const callerEmail = await slackGetUserEmail(slackUserId);
+    if (!callerEmail || callerEmail !== employeeEmail) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { _: 'You are not the owner of this feedback' },
+      });
+    }
+
+    const docRef = db.collection('employees').doc(employeeEmail);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { _: 'Feedback not found' },
+      });
+    }
+    const employee = docSnap.data();
+    if (employee.status !== 'Shared') {
+      // Already acknowledged or not yet shared — just show success/close.
+      return res.status(200).json({
+        response_action: 'update',
+        view: buildAckSuccessModal(),
+      });
+    }
+
+    const acknowledgedAt = new Date().toISOString();
+    await docRef.update({ status: 'Acknowledged', acknowledged_at: acknowledgedAt });
+
+    await db.collection('employee_audit').add({
+      employee_id: employeeEmail,
+      actor_email: employeeEmail,
+      actor_name: employee.employee_name,
+      event_type: 'acknowledge',
+      timestamp: acknowledgedAt,
+      notes: 'Acknowledged via Slack',
+    });
+
+    return res.status(200).json({
+      response_action: 'update',
+      view: buildAckSuccessModal(),
+    });
+  }
 
   // --- Vite Middleware ---
 
