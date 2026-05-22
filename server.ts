@@ -15,6 +15,8 @@ import {
   buildDraftSavedModal,
   buildLockedReviewModal,
   buildSharedModal,
+  buildLoadingModal,
+  buildErrorModal,
   RATING_OPTIONS,
 } from './src/lib/slack-blocks';
 import {
@@ -735,17 +737,42 @@ async function startServer() {
       if (command !== '/midyear') return res.status(200).send('');
       if (!userId || !triggerId) return res.status(400).send('Bad payload');
 
-      // Ack immediately so we don't blow the 3s budget.
+      // Ack the slash command HTTP request immediately.
       res.status(200).send('');
+
+      // CRITICAL: trigger_id expires after 3 seconds. We MUST call views.open
+      // before that — even with a placeholder. The real work (users.info,
+      // Firestore query) is too slow on a Cloud Run cold start. Pattern:
+      //   1. views.open(loading) — uses trigger_id, must be fast
+      //   2. do slow work
+      //   3. views.update(real content) — uses the view_id, no time limit
+      let viewId: string;
+      try {
+        const openResult = await slackOpenView(
+          triggerId,
+          buildLoadingModal('Mid-year check-ins', 'Loading your team...'),
+        );
+        viewId = (openResult as any)?.view?.id;
+        if (!viewId) throw new Error('views.open returned no view id');
+      } catch (err) {
+        console.error('/midyear loading modal failed:', err);
+        return;
+      }
 
       try {
         const managerEmail = await slackGetUserEmail(userId);
         if (!managerEmail || !managerEmail.endsWith('@freshworks.com')) {
-          console.warn('/midyear: unauthorized user', userId, managerEmail);
+          await slackUpdateView(
+            viewId,
+            buildErrorModal('Not allowed', 'Only @freshworks.com users can use this command.'),
+          );
           return;
         }
         if (!db) {
-          console.error('/midyear: database unavailable');
+          await slackUpdateView(
+            viewId,
+            buildErrorModal('Service unavailable', 'Database is not available right now.'),
+          );
           return;
         }
 
@@ -759,9 +786,15 @@ async function startServer() {
           ...d.data(),
         }));
 
-        await slackOpenView(triggerId, buildPendingReportsModal(reports as any));
+        await slackUpdateView(viewId, buildPendingReportsModal(reports as any));
       } catch (err) {
         console.error('/midyear command failed:', err);
+        try {
+          await slackUpdateView(
+            viewId,
+            buildErrorModal('Something went wrong', 'Please try `/midyear` again.'),
+          );
+        } catch {}
       }
     },
   );

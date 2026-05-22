@@ -433,3 +433,34 @@ export function buildSharedModal(employee: Employee) {
     ],
   };
 }
+
+// Placeholder modal opened immediately on slash command, while the server
+// fetches data in the background. Replaced via views.update once ready.
+// Critical: must be open()'d within 3s of trigger_id issuance.
+export function buildLoadingModal(title: string, message: string) {
+  return {
+    type: 'modal',
+    title: { type: 'plain_text', text: title },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `:hourglass_flowing_sand: ${message}` },
+      },
+    ],
+  };
+}
+
+export function buildErrorModal(title: string, message: string) {
+  return {
+    type: 'modal',
+    title: { type: 'plain_text', text: title },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `:warning: ${message}` },
+      },
+    ],
+  };
+}
