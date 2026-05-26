@@ -26,6 +26,7 @@ import {
   openView as slackOpenView,
   updateView as slackUpdateView,
   verifySlackSignature,
+  reportOpsAlert,
 } from './src/lib/slack';
 
 // Initialize Gemini Client Lazily
@@ -94,6 +95,7 @@ async function startServer() {
       console.log(`Firestore initialized for database: ${dbId}`);
     } catch (error) {
       console.error('Firestore initialization failed:', error);
+      reportOpsAlert('Firestore failed to initialize — data features are down', error);
     }
   }
 
@@ -276,6 +278,7 @@ async function startServer() {
       res.json({ ok: true, notified: slackUser.id });
     } catch (err: any) {
       console.error('Slack notify failed:', err);
+      reportOpsAlert(`Slack DM to ${employeeEmail} failed after a review was shared`, err);
       res.status(500).json({ error: err?.message || 'Slack notify failed' });
     }
   });
@@ -317,6 +320,7 @@ async function startServer() {
         return res.status(200).send('');
       } catch (err: any) {
         console.error('Slack interact failed:', err);
+        reportOpsAlert(`Slack interaction failed (${payload?.type || 'unknown'})`, err);
         return res.status(500).send('Internal error');
       }
     },
@@ -756,6 +760,7 @@ async function startServer() {
         if (!viewId) throw new Error('views.open returned no view id');
       } catch (err) {
         console.error('/midyear loading modal failed:', err);
+        reportOpsAlert('/midyear could not open the loading modal (manager saw nothing — likely cold start or Slack token)', err);
         return;
       }
 
@@ -789,6 +794,7 @@ async function startServer() {
         await slackUpdateView(viewId, buildPendingReportsModal(reports as any));
       } catch (err) {
         console.error('/midyear command failed:', err);
+        reportOpsAlert('/midyear failed while loading a team list', err);
         try {
           await slackUpdateView(
             viewId,
