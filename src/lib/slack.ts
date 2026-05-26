@@ -106,3 +106,25 @@ export function verifySlackSignature(
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }
+
+// "Smoke alarm" — posts a one-line alert to a Slack Incoming Webhook so
+// operators see failures live instead of digging through server logs.
+// No-ops if SLACK_ALERT_WEBHOOK_URL isn't set, and never throws — the alarm
+// must never be able to break the thing it's monitoring.
+export async function reportOpsAlert(title: string, detail: unknown): Promise<void> {
+  const url = process.env.SLACK_ALERT_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    const detailStr = detail instanceof Error ? detail.message : String(detail);
+    const env = process.env.NODE_ENV || 'unknown';
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `:rotating_light: *Fresh Impact* — ${title}\n\`\`\`${detailStr.slice(0, 800)}\`\`\`\n_${new Date().toISOString()} · env: ${env}_`,
+      }),
+    });
+  } catch {
+    // The alarm must never break the app.
+  }
+}
