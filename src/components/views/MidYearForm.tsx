@@ -166,12 +166,30 @@ export const MidYearForm = ({
         body: JSON.stringify({ feedback: text, context })
       });
 
+      if (!response.ok) {
+        let errorMsg = 'AI refinement failed. Please try again later.';
+        const textResponse = await response.text();
+        try {
+          const errorData = JSON.parse(textResponse);
+          if (errorData.error) errorMsg = errorData.error;
+        } catch {
+          console.error(`Refinement failed with status ${response.status}:`, textResponse);
+          if (response.status === 403) {
+            errorMsg = 'Permission denied. This often means the API key is missing or invalid.';
+          }
+        }
+        showToast(errorMsg, 'error');
+        return;
+      }
+
       const data = await response.json();
       if (data.refinedText) {
         setMidYearData(prev => ({ ...prev, [fieldName]: data.refinedText }));
+        showToast('Feedback refined with AI.', 'success');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Refinement failed:', error);
+      showToast('AI refinement failed: ' + (error.message || 'Unknown error'), 'error');
     } finally {
       setRefiningField(null);
     }

@@ -28,32 +28,19 @@ import {
   verifySlackSignature,
 } from './src/lib/slack';
 
-// Initialize Gemini Client Lazily
-let genAI: GoogleGenAI | null = null;
-function getGeminiClient() {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('GEMINI_API_KEY is not set. AI features will be disabled.');
-      return null;
-    }
-    genAI = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-  }
-  return genAI;
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Simple request logger
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    }
+    next();
+  });
 
   // Health check endpoint - respond immediately
   app.get('/health', (req, res) => {
@@ -134,12 +121,25 @@ async function startServer() {
   };
 
   // --- Gemini AI Routes ---
+  
+  function getGenAI() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+    return new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
 
-  app.post('/api/gemini/refine-feedback', requireAuth, async (req, res) => {
+  app.post('/api/gemini/refine-feedback', requireAuth, async (req: any, res: any) => {
     const { feedback, context } = req.body;
     if (!feedback) return res.status(400).json({ error: 'Feedback text is required' });
 
-    const ai = getGeminiClient();
+    const ai = getGenAI();
     if (!ai) {
       return res.status(503).json({ error: 'AI service is temporarily unavailable (check API key configuration).' });
     }
@@ -166,21 +166,36 @@ async function startServer() {
       `;
 
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: prompt,
       });
 
       const refinedText = result.text;
+      if (!refinedText) {
+        throw new Error('Gemini returned empty response');
+      }
       res.json({ refinedText });
     } catch (error: any) {
       console.error('Gemini Error:', error);
       const errorMessage = error?.message || '';
-      if (errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('API_KEY_INVALID')) {
+      
+      if (
+        errorMessage.includes('PERMISSION_DENIED') || 
+        errorMessage.includes('API_KEY_INVALID') ||
+        errorMessage.includes('reported as leaked') ||
+        errorMessage.includes('API_KEY_HTTP_REFERRER_BLOCKED') ||
+        errorMessage.includes('blocked')
+      ) {
+        let msg = 'Gemini API key is invalid or has been reported as leaked.';
+        if (errorMessage.includes('API_KEY_HTTP_REFERRER_BLOCKED') || errorMessage.includes('blocked')) {
+          msg = 'Gemini API key is restricted by HTTP Referrer. This usually happens if your API key has domain restrictions that block the AI Studio preview environment.';
+        }
         return res.status(403).json({ 
-          error: 'Gemini API Permission Denied. Please check your API key in the Settings > Secrets panel.' 
+          error: msg + ' Please provide an unrestricted API key in the AI Studio Settings > Secrets panel, or update your key restrictions in the Google Cloud Console.' 
         });
       }
-      res.status(500).json({ error: 'Failed to refine feedback using AI' });
+      
+      res.status(500).json({ error: 'Failed to refine feedback using AI: ' + errorMessage });
     }
   });
 
@@ -800,6 +815,11 @@ async function startServer() {
   );
 
   // --- Vite Middleware ---
+
+  // Handle 404s for API routes specifically
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
