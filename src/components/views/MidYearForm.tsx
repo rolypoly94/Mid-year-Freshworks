@@ -230,16 +230,27 @@ export const MidYearForm = ({
   };
 
   // Format date helper
-  const formatDate = (dateStr?: string) => {
+  const formatDate = (dateStr?: string | number | Date | null) => {
     if (!dateStr) return 'N/A';
+    let targetDate: Date;
+    
+    const num = Number(dateStr);
+    if (!isNaN(num) && num > 10000 && num < 80000) {
+      const excelEpoch = new Date(1899, 11, 30);
+      targetDate = new Date(excelEpoch.getTime() + num * 86400000);
+    } else {
+      targetDate = new Date(dateStr);
+    }
+    
     try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
+      if (isNaN(targetDate.getTime())) return String(dateStr);
+      return targetDate.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       });
     } catch {
-      return 'N/A';
+      return String(dateStr);
     }
   };
 

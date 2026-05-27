@@ -45,6 +45,22 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     return re.test(email) && email.toLowerCase().endsWith('@freshworks.com');
   };
 
+  const parseAndCleanDate = (rawVal: string): string => {
+    if (!rawVal) return '';
+    const num = Number(rawVal);
+    if (!isNaN(num) && num > 10000 && num < 80000) {
+      const excelEpoch = new Date(1899, 11, 30);
+      const jsDate = new Date(excelEpoch.getTime() + num * 86400000);
+      if (!isNaN(jsDate.getTime())) {
+        const day = String(jsDate.getDate()).padStart(2, '0');
+        const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+        const year = jsDate.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    }
+    return rawVal;
+  };
+
   const parseFile = async (file: File): Promise<ImportResult | null> => {
     if (file.size > 10 * 1024 * 1024) {
       showToast('File size exceeds 10MB limit.', 'error');
@@ -143,7 +159,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             const fullName = getVal(row, 'Employee Name', 'Name') || `${firstName} ${lastName}`.trim();
             const managerEmail = getVal(row, 'Manager Email').toLowerCase();
             const employeeId = getVal(row, 'Employee ID', 'ID');
-            const termDateStr = getVal(row, 'Termination Date');
+            const termDateStr = parseAndCleanDate(getVal(row, 'Termination Date'));
 
             const reasons: string[] = [];
             let hasFatal = false;
@@ -218,8 +234,8 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
               job_family: getVal(row, 'Job Family'),
               work_location: getVal(row, 'Work Location'),
               grade: getVal(row, 'Grade'),
-              hire_date: getVal(row, 'Hire Date'),
-              last_promotion_date: getVal(row, 'Last Promotion Date'),
+              hire_date: parseAndCleanDate(getVal(row, 'Hire Date')),
+              last_promotion_date: parseAndCleanDate(getVal(row, 'Last Promotion Date')),
               tenure_in_freshworks: getVal(row, 'Tenure in Freshworks'),
               tenure_in_position: getVal(row, 'Tenure In Position'),
               tenure_in_job_profile: getVal(row, 'Tenure in Current Job Profile'),

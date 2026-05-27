@@ -9,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 export const formatDate = (date: string | number | Date | null | undefined) => {
   if (date === undefined || date === null || date === '') return 'N/A';
   
-  if (typeof date === 'number' || (!isNaN(Number(date)) && String(date).includes('.') && Number(date) > 30000)) {
-    const numDate = Number(date);
+  const numDate = Number(date);
+  if (!isNaN(numDate) && numDate > 10000 && numDate < 80000) {
     const excelEpoch = new Date(1899, 11, 30);
     const jsDate = new Date(excelEpoch.getTime() + numDate * 86400000);
     if (!isNaN(jsDate.getTime())) {
