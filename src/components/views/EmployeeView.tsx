@@ -299,43 +299,11 @@ export const EmployeeView = ({
                   </div>
                 )}
 
-                {/* Performance Trending Rating & Promotion Readiness (Confidential - Hidden from Employee) */}
-                {isAdmin && (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-y border-gray-50 py-8">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                           <Award className="w-5 h-5 text-blue-600" />
-                           <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Performance Trending Rating</h4>
-                        </div>
-                        <div className="bg-blue-50/50 rounded-2xl p-4 inline-block">
-                           <p className="text-xl font-extrabold text-blue-700">{employee.mid_year_checkin?.performance_trending_rating || '—'}</p>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                           <TrendingUp className="w-5 h-5 text-blue-600" />
-                           <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Promotion Readiness</h4>
-                        </div>
-                        <div className="bg-blue-50/50 rounded-2xl p-4 inline-block">
-                           <p className="text-xl font-extrabold text-blue-700">{employee.mid_year_checkin?.promotion_readiness || '—'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {employee.mid_year_checkin?.additional_notes && (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5 text-indigo-600" />
-                          <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Additional Calibration Notes</h4>
-                        </div>
-                        <div className="bg-gray-50 rounded-3xl p-6">
-                          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{employee.mid_year_checkin?.additional_notes}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Performance trending rating, promotion readiness, and
+                    calibration notes are intentionally NOT shown in the
+                    employee's own view — they are the manager's private
+                    calibration data. Even an app admin viewing their own
+                    My Performance should not see them here. */}
 
                 <div className="pt-8 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-6">
                   <div>
@@ -365,10 +333,10 @@ export const EmployeeView = ({
 
                 {isFinalized && (
                   <div className="pt-8 border-t border-gray-50">
-                    <AuditTrailSection 
-                      employeeId={employee.id} 
-                      initialExpanded={isAdmin} 
-                      hideConfidentialFields={user?.email?.toLowerCase() === employee.employee_email.toLowerCase() && !isAdmin}
+                    <AuditTrailSection
+                      employeeId={employee.id}
+                      initialExpanded={isAdmin}
+                      hideConfidentialFields={user?.email?.toLowerCase() === employee.employee_email.toLowerCase()}
                     />
                   </div>
                 )}
