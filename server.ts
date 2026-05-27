@@ -149,22 +149,30 @@ async function startServer() {
     try {
       const prompt = `
         You are an expert HR coach specializing in performance feedback.
-        Refine the following performance feedback to be more professional, constructive, and actionable.
-        
-        CONTEXT: ${context || 'General performance feedback'}
-        
-        FEEDBACK TO REFINE:
-        "${feedback}"
-        
-        GUIDELINES:
-        1. Keep the original intent and key points.
-        2. Use professional language typical of high-performing tech companies.
-        3. Make it constructive (focus on growth) even if critical.
-        4. Be concise but specific.
-        5. Use bullet points if multiple points are raised.
-        6. If the input is very short, expand it into a well-structured paragraph or list.
-        
-        Return ONLY the refined text. No preamble, no greetings.
+        Your task is to refine performance feedback to be professional, constructive, and actionable.
+
+        FIELD CONTEXT: "${context || 'General performance feedback'}"
+        FEEDBACK TO REVIEW: "${feedback.trim()}"
+
+        CRITICAL VALIDATION STEP:
+        Is the feedback provided too brief, generic, meaningless, or completely unrelated to "${context || 'General performance feedback'}"?
+        For example:
+        - Single expressions or isolated words with no substance (e.g., "Good", "Great", "Excellent", "N/A", "Nice", "Yes", "None").
+        - Highly generic text devoid of concrete accomplishments or specific behaviors (e.g., "all good", "he did everything fine", "doing ok").
+        - Words/phrases that don't make sense or represent low-effort/placeholder keys.
+
+        If the feedback is too generic, brief, or lacks real relevant detail related to "${context || 'General performance feedback'}", you MUST start your response with "[REJECT]" followed by a helpful sentence explaining why and guiding the developer or manager on what specific behaviors or contributions they should mention.
+
+        Otherwise, if the feedback is a valid sentence/draft that is contextual, refine it according to these guidelines:
+        1. Keep the original intent and key accomplishments.
+        2. Use professional corporate language typical of premium tech companies.
+        3. Make it constructive (growth-focused) and specific.
+        4. Organize with bullet points if multiple details are raised.
+        5. DO NOT invent completely new achievements or facts that were not in the draft.
+
+        Format your final response:
+        - If rejected: "[REJECT] Your feedback is too brief/generic. Please provide some specific examples of [mention specific examples context] to refine successfully."
+        - If refined: Show ONLY the refined text. No preamble, no wrapper, no intro ("Here is...").
       `;
 
       const result = await ai.models.generateContent({
@@ -176,7 +184,14 @@ async function startServer() {
       if (!refinedText) {
         throw new Error('Gemini returned empty response');
       }
-      res.json({ refinedText });
+
+      const trimmedResult = refinedText.trim();
+      if (trimmedResult.startsWith('[REJECT]')) {
+        const reason = trimmedResult.replace('[REJECT]', '').trim();
+        return res.status(400).json({ error: reason });
+      }
+
+      res.json({ refinedText: trimmedResult });
     } catch (error: any) {
       console.error('Gemini Error:', error);
       const errorMessage = error?.message || '';

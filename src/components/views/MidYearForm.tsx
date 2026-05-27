@@ -150,8 +150,14 @@ export const MidYearForm = ({
   }, [isDirty, isFinalized]);
 
   const handleRefine = async (fieldName: keyof MidYearCheckin, context: string) => {
-    const text = midYearData[fieldName] as string;
-    if (!text || text.trim().length < 5) return;
+    const text = (midYearData[fieldName] as string || '').trim();
+    if (!text) return;
+
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    if (wordCount < 3 || text.length < 12) {
+      showToast('The feedback is too brief. Please enter at least 3 words outlining specific details or points related to this field.', 'error');
+      return;
+    }
     if (!user) return;
 
     setRefiningField(fieldName);
