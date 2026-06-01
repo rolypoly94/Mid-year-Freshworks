@@ -11,7 +11,7 @@ export const RATING_OPTIONS = [
 // DM the employee receives when their manager releases the check-in.
 // Single button — "Open feedback" — opens the modal via views.open.
 export function buildReleaseDM(employee: Employee) {
-  const firstName = employee.first_name || employee.employee_name.split(' ')[0] || 'there';
+  const firstName = employee.first_name || (employee.employee_name || '').split(' ')[0] || 'there';
   const managerName = employee.manager_name || 'your manager';
 
   return {

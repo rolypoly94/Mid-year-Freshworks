@@ -31,10 +31,10 @@ export const AuditTrailModal = ({ isOpen, onClose, employee }: AuditTrailModalPr
         <div className="px-8 py-6 border-b border-gray-50 flex items-center justify-between bg-blue-600">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-xl font-bold text-white">
-              {employee.employee_name.charAt(0)}
+              {(employee.employee_name || employee.first_name || 'E').charAt(0)}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white leading-tight">{employee.employee_name}</h3>
+              <h3 className="text-lg font-bold text-white leading-tight">{employee.employee_name || `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'Employee'}</h3>
               <p className="text-xs text-blue-100 mt-0.5">Audit History • {employee.employee_id}</p>
             </div>
           </div>

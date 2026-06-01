@@ -336,13 +336,13 @@ export const MidYearForm = ({
           {/* Stylized Avatar */}
           <div className="shrink-0">
             <div className="w-24 h-24 bg-[var(--color-apple-blue)] rounded-[2rem] flex items-center justify-center text-4xl font-bold text-white shadow-xl shadow-[var(--color-apple-blue)]/20">
-              {employee.employee_name.charAt(0)}
+              {(employee.employee_name || employee.first_name || 'E').charAt(0)}
             </div>
           </div>
           
           <div className="flex-1 text-center md:text-left pt-1">
             <h3 className="text-3xl font-bold text-[var(--color-apple-black)] tracking-tight mb-2">
-              {employee.employee_name}
+              {employee.employee_name || `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'Employee'}
             </h3>
             <div className="flex flex-wrap justify-center md:justify-start items-center gap-2">
               <span className="text-[12px] font-bold text-[var(--color-apple-gray)] uppercase tracking-wide">

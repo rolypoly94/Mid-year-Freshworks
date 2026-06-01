@@ -103,7 +103,7 @@ export const OverrideModal = ({
                   </div>
                   <div>
                     <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">Admin Correction Flow</h3>
-                    <p className="text-xs text-amber-700 font-bold uppercase tracking-widest">Correcting Review for {employee.employee_name}</p>
+                    <p className="text-xs text-amber-700 font-bold uppercase tracking-widest">Correcting Review for {employee.employee_name || `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'Employee'}</p>
                   </div>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 border border-transparent hover:border-gray-100">

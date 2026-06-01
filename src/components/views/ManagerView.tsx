@@ -157,14 +157,14 @@ export const ManagerView = React.memo(({
                         "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all",
                         selectedEmployeeId === emp.id ? "bg-blue-600 text-white shadow-lg" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
                       )}>
-                        {emp.employee_name.charAt(0)}
+                        {(emp.employee_name || emp.first_name || 'E').charAt(0)}
                       </div>
                       <div>
                         <p className={cn(
                           "text-sm font-bold truncate max-w-[150px]",
                           selectedEmployeeId === emp.id ? "text-blue-700" : "text-gray-900"
                         )}>
-                          {emp.employee_name}
+                          {emp.employee_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Employee'}
                         </p>
                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mt-1">
                           {emp.job_title}
