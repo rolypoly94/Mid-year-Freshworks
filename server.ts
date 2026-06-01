@@ -380,27 +380,66 @@ async function startServer() {
 
     const employeeEmail = String(action.value || '').toLowerCase();
     const slackUserId = payload.user?.id;
-    if (!employeeEmail || !slackUserId) return res.status(400).send('Bad payload');
+    const triggerId = payload.trigger_id;
+    if (!employeeEmail || !slackUserId || !triggerId) return res.status(400).send('Bad payload');
 
-    const callerEmail = await slackGetUserEmail(slackUserId);
-    if (!callerEmail || callerEmail !== employeeEmail) {
-      return res.status(403).send('Not the owner');
-    }
-
-    const docSnap = await db.collection('employees').doc(employeeEmail).get();
-    if (!docSnap.exists) return res.status(404).send('Employee not found');
-    const employee = { id: docSnap.id, ...docSnap.data() } as any;
-
-    if (employee.status !== 'Shared' && employee.status !== 'Acknowledged') {
-      return res.status(409).send('Feedback not yet shared');
-    }
-
-    // Open modal — must respond within 3s, so ack first then call views.open.
+    // Ack the HTTP request immediately.
     res.status(200).send('');
+
+    // Open a placeholder modal right away so the trigger_id is consumed while
+    // fresh. The DM can sit for hours before the employee clicks, so the
+    // server is often cold — doing the Slack lookup + Firestore read before
+    // views.open risks blowing the 3s trigger_id window (expired_trigger_id).
+    let viewId: string;
     try {
-      await slackOpenView(payload.trigger_id, buildFeedbackModal(employee));
+      const opened = await slackOpenView(
+        triggerId,
+        buildLoadingModal('Mid-year check-in', 'Loading your feedback...'),
+      );
+      viewId = (opened as any)?.view?.id;
+      if (!viewId) throw new Error('views.open returned no view id');
     } catch (err) {
-      console.error('views.open failed:', err);
+      console.error('open_feedback loading modal failed:', err);
+      return;
+    }
+
+    try {
+      const callerEmail = await slackGetUserEmail(slackUserId);
+      if (!callerEmail || callerEmail !== employeeEmail) {
+        await slackUpdateView(
+          viewId,
+          buildErrorModal('Not allowed', 'This feedback is not yours to view.'),
+        );
+        return;
+      }
+
+      const docSnap = await db.collection('employees').doc(employeeEmail).get();
+      if (!docSnap.exists) {
+        await slackUpdateView(
+          viewId,
+          buildErrorModal('Not found', 'We could not find your feedback.'),
+        );
+        return;
+      }
+      const employee = { id: docSnap.id, ...docSnap.data() } as any;
+
+      if (employee.status !== 'Shared' && employee.status !== 'Acknowledged') {
+        await slackUpdateView(
+          viewId,
+          buildErrorModal('Not ready', 'This feedback has not been shared yet.'),
+        );
+        return;
+      }
+
+      await slackUpdateView(viewId, buildFeedbackModal(employee));
+    } catch (err) {
+      console.error('open_feedback failed:', err);
+      try {
+        await slackUpdateView(
+          viewId,
+          buildErrorModal('Something went wrong', 'Please try again.'),
+        );
+      } catch {}
     }
   }
 
