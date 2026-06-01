@@ -696,14 +696,8 @@ async function startServer() {
     const development = String(
       values?.development_evolution_block?.development_evolution?.value || '',
     ).trim();
-    const leadershipMastery = String(
-      values?.leadership_mastery_block?.leadership_mastery?.value || '',
-    ).trim();
     const ratingValue = String(
       values?.rating_block?.rating?.selected_option?.value || '',
-    );
-    const promotionValue = String(
-      values?.promotion_readiness_block?.promotion_readiness?.selected_option?.value || '',
     );
     const saveMode = String(
       values?.save_mode_block?.save_mode?.selected_option?.value || 'Draft',
@@ -711,13 +705,11 @@ async function startServer() {
 
     const isFinal = saveMode === 'Submitted';
 
-    // Validate when submitting (not when drafting). Mirrors the web form's
-    // isFormValid: Wins + Growth + Leadership Mastery + Rating are required.
+    // Validate when submitting (not when drafting).
     if (isFinal) {
       const errors: Record<string, string> = {};
       if (!keyContributions) errors.key_contributions_block = 'Required to submit';
       if (!development) errors.development_evolution_block = 'Required to submit';
-      if (!leadershipMastery) errors.leadership_mastery_block = 'Required to submit';
       if (!ratingValue) errors.rating_block = 'Pick a rating to submit';
       if (Object.keys(errors).length > 0) {
         return res.status(200).json({ response_action: 'errors', errors });
@@ -728,14 +720,6 @@ async function startServer() {
       return res.status(200).json({
         response_action: 'errors',
         errors: { rating_block: 'Invalid rating value' },
-      });
-    }
-
-    const ALLOWED_PROMOTION = ['ready_next_year_end', 'ready_next_mid_year', 'reassess_next_year'];
-    if (promotionValue && !ALLOWED_PROMOTION.includes(promotionValue)) {
-      return res.status(200).json({
-        response_action: 'errors',
-        errors: { promotion_readiness_block: 'Invalid promotion readiness value' },
       });
     }
 
@@ -750,7 +734,6 @@ async function startServer() {
         ...existing,
         key_contributions: keyContributions,
         development_evolution: development,
-        leadership_mastery: leadershipMastery,
         submitted_at: isFinal
           ? timestamp
           : existing.submitted_at || null,
@@ -764,7 +747,7 @@ async function startServer() {
     await privateRef.set(
       {
         performance_trending_rating: ratingValue || '',
-        promotion_readiness: promotionValue || null,
+        promotion_readiness: null,
         additional_notes: '',
         updated_at: timestamp,
         manager_email: callerEmail,

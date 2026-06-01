@@ -95,7 +95,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, idx }) => {
             </div>
           ) : <div />}
           
-          {goal.weight !== undefined && (
+          {goal.weight !== undefined && goal.weight !== null && Number(goal.weight) > 1 && (
             <div className="bg-blue-50/50 text-blue-600 px-2 py-0.5 rounded-md border border-blue-100/50">
               Weight: {goal.weight}%
             </div>
