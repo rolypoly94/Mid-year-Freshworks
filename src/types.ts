@@ -95,6 +95,7 @@ export interface Employee {
   management_chain_l10?: string;
   rating_2024?: string;
   rating_2025?: string;
+  goals?: string[];
   
   // Feedback data
   mid_year_checkin?: MidYearCheckin;

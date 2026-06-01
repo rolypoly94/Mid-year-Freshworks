@@ -13,6 +13,11 @@ export const seedMockData = async (userEmail: string) => {
       manager_name: 'My Manager',
       job_title: 'Manager - QA',
       grade: 'PM 4',
+      goals: [
+        "Architect and implement the modern automated end-to-end regression testing pipeline for the primary Freshworks products.",
+        "Establish shift-left quality protocols across two major feature pods to reduce release-blocker QA escapes by 40%.",
+        "Empower QA engineers by designing an interactive training program centered around next-generation performance profiling tools."
+      ],
       status: 'Pending',
       updated_at: new Date().toISOString()
     },
@@ -25,6 +30,11 @@ export const seedMockData = async (userEmail: string) => {
       manager_name: 'My Manager',
       job_title: 'Senior Software Engineer',
       grade: 'IC 4',
+      goals: [
+        "Drive the design and decoupling of legacy high-latency notification systems into streamlined, asynchronous worker microservices.",
+        "Profile and optimize database query architectures to achieve an ambitious p95 server response target under 300ms.",
+        "Dedicate time to peer mentoring, leading fortnightly architecture sessions and code alignment workshops for junior engineers."
+      ],
       status: 'Pending',
       updated_at: new Date().toISOString()
     }

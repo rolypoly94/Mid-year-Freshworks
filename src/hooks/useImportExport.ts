@@ -218,6 +218,11 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             const numDirectReportsStr = getVal(row, 'Number of Direct Reports', 'Reports');
             const numDirectReports = numDirectReportsStr ? Number(numDirectReportsStr) : null;
 
+            const goalsRaw = getVal(row, 'Goals', 'Key Goals', '2026 Goals', 'Start of Year Goals', 'Objectives', 'KPIs');
+            const goals = goalsRaw 
+              ? goalsRaw.split('\n').map(g => g.trim().replace(/^[-*•/s\d)]+/, '').trim()).filter(g => g.length > 2) 
+              : [];
+
             const employee: Employee = {
               id: rawEmail,
               employee_email: rawEmail,
@@ -243,6 +248,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
               num_direct_reports: numDirectReports !== null && !isNaN(numDirectReports) ? numDirectReports : null,
               rating_2024: getVal(row, '2024 FPI Rating'),
               rating_2025: getVal(row, '2025 FPI Rating'),
+              goals: goals.length > 0 ? goals : undefined,
               management_chain_l6: getVal(row, 'Management Chain - Level 06'),
               management_chain_l7: getVal(row, 'Management Chain - Level 07'),
               management_chain_l8: getVal(row, 'Management Chain - Level 08'),

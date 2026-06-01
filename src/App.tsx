@@ -133,6 +133,7 @@ const App = () => {
       'Number of Direct Reports': '0',
       '2024 FPI Rating': '',
       '2025 FPI Rating': '',
+      'Start of Year Goals': '1. Deliver microservice migration on-time.\n2. Optimize dashboard database response to under 300ms.\n3. Mentor junior engineering staff with biweekly architecture sessions.',
       'Management Chain - Level 06': '',
       'Management Chain - Level 07': '',
       'Management Chain - Level 08': '',
@@ -145,6 +146,7 @@ const App = () => {
       { 'Instruction': 'Termination Date', 'Details': 'Leave blank for active employees. Populate for employees with known exit dates; these will be flagged in the import preview.' },
       { 'Instruction': 'Management Chain', 'Details': 'Management Chain (L6–L10) — Imported for future leadership rollup visibility. Populate if available from Workday; has no effect on the current release.' },
       { 'Instruction': 'Email Domain', 'Details': 'All emails MUST belong to @freshworks.com' },
+      { 'Instruction': 'Start of Year Goals', 'Details': 'Optional. Multi-line bullet points or numbered lists detailing employee goals set at the start of the year (H1). These are cleanly parsed and will be displayed in-context to managers during review sessions.' },
       { 'Instruction': 'Data Preservation', 'Details': 'Re-importing updates profile info (Job Title, etc.) but NEVER overwrites submitted feedback.' },
       { 'Instruction': 'Multiple Sheets', 'Details': 'The importer reads all sheets. Ensure the first row of each sheet contains headers.' }
     ];

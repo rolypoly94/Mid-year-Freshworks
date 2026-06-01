@@ -412,6 +412,47 @@ export const MidYearForm = ({
           </Card>
         </div>
       </div>
+
+      {/* Section: Employee Goals (Set at Start of Year) */}
+      {employee.goals && employee.goals.length > 0 ? (
+        <Card className="p-8 bg-blue-50/20 border border-blue-500/10 rounded-[2rem] shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-full bg-blue-500/11 flex items-center justify-center text-blue-600 shrink-0">
+              <Target className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[14px] font-bold text-[var(--color-apple-black)] leading-tight">Start of Year Goals (H1 2026)</h4>
+              <p className="text-[10px] text-[var(--color-apple-gray)] uppercase tracking-wider font-semibold">Established Objectives for This Cycle</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {employee.goals.map((goal, idx) => (
+              <div key={idx} className="bg-white border border-black/[0.02] p-5 rounded-2xl flex gap-3 shadow-[0_2px_6px_rgba(0,0,0,0.01)] hover:shadow-md hover:border-black/[0.04] transition-all">
+                <span className="text-[12px] font-black text-blue-600 bg-blue-50/80 rounded-lg w-6 h-6 flex items-center justify-center shrink-0">
+                  {idx + 1}
+                </span>
+                <p className="text-[13px] font-medium text-[var(--color-apple-black)] leading-relaxed">{goal}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-8 bg-gray-50/30 border border-black/[0.03] rounded-[2rem] shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+              <Target className="w-4 h-4 text-gray-500" />
+            </div>
+            <div>
+              <h4 className="text-[14px] font-bold text-gray-700 leading-tight">Start of Year Goals</h4>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">No objectives configured for this cycle</p>
+            </div>
+          </div>
+          <p className="text-[13px] text-gray-500 leading-relaxed font-semibold">
+            Start-of-year goals have not been loaded for this employee. Administrators can use the spreadsheet importer in the HR/BP Admin View to upload these goals.
+          </p>
+        </Card>
+      )}
+
       {/* Section 3: Review Form */}
       <Card className="p-10 bg-white border border-black/[0.03] shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[2rem] space-y-12">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b border-black/[0.03] pb-10">
