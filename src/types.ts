@@ -15,6 +15,15 @@ export interface ImportResult {
   warnings: string[];
 }
 
+export interface EmployeeGoal {
+  goal_name: string;
+  goal_category: string;       // "Performance Objective", "Audacious Goal", etc.
+  goal_description: string;
+  status: string;              // "Progressing", "Completed", etc.
+  due_date: string;            // ISO date string
+  weight?: number;             // optional, from Formula1 column
+}
+
 export type GreatPillar = 
   | 'Growth Mindset' 
   | 'Vision & Strategy' 
@@ -95,7 +104,7 @@ export interface Employee {
   management_chain_l10?: string;
   rating_2024?: string;
   rating_2025?: string;
-  goals?: string[];
+  goals?: EmployeeGoal[];
   
   // Feedback data
   mid_year_checkin?: MidYearCheckin;

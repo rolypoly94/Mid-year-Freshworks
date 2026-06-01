@@ -10,7 +10,7 @@ import {
   addDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Employee, ImportResult, ImportRow, ImportBucket } from '../types';
+import { Employee, ImportResult, ImportRow, ImportBucket, EmployeeGoal } from '../types';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import XlsxParserWorker from '../workers/xlsx-parser.worker?worker';
@@ -219,8 +219,17 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             const numDirectReports = numDirectReportsStr ? Number(numDirectReportsStr) : null;
 
             const goalsRaw = getVal(row, 'Goals', 'Key Goals', '2026 Goals', 'Start of Year Goals', 'Objectives', 'KPIs');
-            const goals = goalsRaw 
-              ? goalsRaw.split('\n').map(g => g.trim().replace(/^[-*•/s\d)]+/, '').trim()).filter(g => g.length > 2) 
+            const goals: EmployeeGoal[] = goalsRaw 
+              ? goalsRaw.split('\n')
+                .map(g => g.trim().replace(/^[-*•\s\d)]+/, '').trim())
+                .filter(g => g.length > 2)
+                .map(g => ({
+                  goal_name: g,
+                  goal_category: 'Performance Objective',
+                  goal_description: '',
+                  status: 'Progressing',
+                  due_date: ''
+                }))
               : [];
 
             const employee: Employee = {
@@ -386,6 +395,221 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     }
   };
 
+  const parseToISOString = (rawVal: any): string => {
+    if (!rawVal) return '';
+    if (rawVal instanceof Date) {
+      try {
+        return rawVal.toISOString();
+      } catch {
+        return '';
+      }
+    }
+    const valStr = String(rawVal).trim();
+    if (!valStr) return '';
+    
+    // Check if it is an excel serial number
+    const num = Number(valStr);
+    if (!isNaN(num) && num > 10000 && num < 80000) {
+      const excelEpoch = new Date(1899, 11, 30);
+      const jsDate = new Date(excelEpoch.getTime() + num * 86400000);
+      if (!isNaN(jsDate.getTime())) {
+        return jsDate.toISOString();
+      }
+    }
+
+    // Try parsing as DD/MM/YYYY or D/M/YYYY
+    const ddmmyyyyMatch = valStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const day = parseInt(ddmmyyyyMatch[1], 10);
+      const month = parseInt(ddmmyyyyMatch[2], 10) - 1;
+      const year = parseInt(ddmmyyyyMatch[3], 10);
+      const jsDate = new Date(year, month, day);
+      if (!isNaN(jsDate.getTime())) {
+        return jsDate.toISOString();
+      }
+    }
+
+    // Try parsing standard JS Date
+    const parsedDate = new Date(valStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString();
+    }
+
+    return '';
+  };
+
+  const parseGoalsFile = async (file: File): Promise<Record<string, unknown>[] | null> => {
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('File size exceeds 10MB limit.', 'error');
+      return null;
+    }
+
+    setIsImporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      if (workbook.SheetNames.length === 0) {
+        showToast('No sheets found in workbook.', 'error');
+        setIsImporting(false);
+        return null;
+      }
+
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+
+      if (rows.length === 0) {
+        showToast('No rows found in sheet.', 'error');
+        setIsImporting(false);
+        return null;
+      }
+
+      setIsImporting(false);
+      return rows;
+    } catch (err: any) {
+      console.error('Error parsing goals file:', err);
+      showToast('Error parsing goals file: ' + err.message, 'error');
+      setIsImporting(false);
+      return null;
+    }
+  };
+
+  const commitGoalsImport = async (rawRows: Record<string, unknown>[]) => {
+    if (!user) return { updated: 0, skipped: 0, warnings: [] as string[] };
+
+    setIsCommitting(true);
+    let updated = 0;
+    let skipped = 0;
+    const warnings: string[] = [];
+
+    try {
+      // 1. Group rows by Email - Work
+      const goalsByEmail = new Map<string, any[]>();
+      
+      rawRows.forEach((row) => {
+        const rawEmail = getVal(row, 'Email - Work', 'Email Work', 'Email', 'Employee Email').trim().toLowerCase();
+        if (!rawEmail) {
+          // Skip silently
+          return;
+        }
+
+        const category = getVal(row, 'Goals_group: Goal Category', 'Goal Category', 'Category');
+        const description = getVal(row, 'Goals_group: Goal Description', 'Goal Description', 'Description');
+        const status = getVal(row, 'Goals_group: Status', 'Goal Status', 'Status') || 'Not Started';
+        const name = getVal(row, 'Goals_group: Goal Name', 'Goal Name', 'Name');
+        const dueDateRaw = getVal(row, 'Goals_group: Due Date', 'Due Date');
+        const weightRaw = getVal(row, 'Formula1', 'Weight');
+
+        const computedDueDate = parseToISOString(dueDateRaw);
+
+        let computedWeight: number | undefined = undefined;
+        if (weightRaw) {
+          const numWeight = parseFloat(weightRaw);
+          if (!isNaN(numWeight)) {
+            computedWeight = numWeight;
+          }
+        }
+
+        const goalObj = {
+          goal_name: name || 'Untitled Goal',
+          goal_category: category || 'General Objective',
+          goal_description: description || '',
+          status: status,
+          due_date: computedDueDate,
+          weight: computedWeight
+        };
+
+        if (!goalsByEmail.has(rawEmail)) {
+          goalsByEmail.set(rawEmail, []);
+        }
+        goalsByEmail.get(rawEmail)!.push(goalObj);
+      });
+
+      if (goalsByEmail.size === 0) {
+        showToast('No valid goals grouped by email.', 'error');
+        setIsCommitting(false);
+        return { updated: 0, skipped: 0, warnings };
+      }
+
+      // Check which emails exist in Firestore
+      const emailsList = Array.from(goalsByEmail.keys());
+      const existingMap = new Map<string, boolean>();
+
+      if (emailsList.length > 0) {
+        const CHUNK_SIZE = 30;
+        const promises = [];
+        for (let i = 0; i < emailsList.length; i += CHUNK_SIZE) {
+          const chunk = emailsList.slice(i, i + CHUNK_SIZE);
+          const q = query(collection(db, 'employees'), where('employee_email', 'in', chunk));
+          promises.push(getDocs(q));
+        }
+        const queryResults = await Promise.all(promises);
+        queryResults.forEach(snapshot => {
+          snapshot.docs.forEach(docSnap => {
+            const email = docSnap.id.toLowerCase();
+            existingMap.set(email, true);
+          });
+        });
+      }
+
+      const updateTargets: { email: string; goals: any[] }[] = [];
+      const BATCH_SIZE = 100;
+
+      goalsByEmail.forEach((goals, email) => {
+        if (existingMap.has(email)) {
+          updateTargets.push({ email, goals });
+        } else {
+          skipped++;
+          warnings.push(`Goal skipped — employee not found: ${email}`);
+        }
+      });
+
+      setCommitProgress({ current: 0, total: updateTargets.length });
+
+      for (let i = 0; i < updateTargets.length; i += BATCH_SIZE) {
+        const chunk = updateTargets.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+
+        chunk.forEach(target => {
+          const docRef = doc(db, 'employees', target.email);
+          batch.set(docRef, { goals: target.goals }, { merge: true });
+        });
+
+        await batch.commit();
+        updated += chunk.length;
+        setCommitProgress({ current: updated, total: updateTargets.length });
+      }
+
+      // Write audit log entry
+      try {
+        await addDoc(collection(db, 'import_audit'), {
+          type: 'goals',
+          admin_email: user.email,
+          timestamp: serverTimestamp(),
+          counts: {
+            total: rawRows.length,
+            updated,
+            skipped
+          },
+          warnings
+        });
+      } catch (auditErr) {
+        console.error('Audit log failed for goals import:', auditErr);
+      }
+
+      showToast(`Import complete. Updated goals for ${updated} employees.`, updated > 0 ? 'success' : 'error');
+      return { updated, skipped, warnings };
+    } catch (err: any) {
+      console.error('Error during goals commit:', err);
+      showToast('Critical error during goals import: ' + err.message, 'error');
+      return { updated, skipped, warnings: [...warnings, err.message] };
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
   const handleDownloadReport = async (data: Employee[], filename: string) => {
     try {
       const XLSX = await import('xlsx');
@@ -455,6 +679,8 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     commitProgress, 
     parseFile, 
     commitImport, 
+    parseGoalsFile,
+    commitGoalsImport,
     handleDownloadReport 
   };
 };

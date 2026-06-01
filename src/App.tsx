@@ -88,8 +88,26 @@ const App = () => {
     commitProgress, 
     parseFile, 
     commitImport, 
+    parseGoalsFile,
+    commitGoalsImport,
     handleDownloadReport 
   } = useImportExport(user, showToast);
+
+  const handleCommitImportWrapper = async (rows: any[]) => {
+    const res = await commitImport(rows);
+    if (res && res.success) {
+      refreshAdminEmployees();
+    }
+    return res;
+  };
+
+  const handleCommitGoalsWrapper = async (rawRows: Record<string, unknown>[]) => {
+    const res = await commitGoalsImport(rawRows);
+    if (res && res.updated > 0) {
+      refreshAdminEmployees();
+    }
+    return res;
+  };
 
   // Form state lives inside MidYearForm now so that typing doesn't re-render the
   // entire app on every keystroke. App only passes the initial values.
@@ -316,7 +334,9 @@ const App = () => {
             isCommitting={isCommitting}
             commitProgress={commitProgress}
             onParse={parseFile}
-            onCommit={commitImport}
+            onCommit={handleCommitImportWrapper}
+            onParseGoals={parseGoalsFile}
+            onCommitGoals={handleCommitGoalsWrapper}
             onDownloadReport={handleDownloadReport}
             onTemplateDownload={downloadTemplate}
             onProxyManager={(email) => {

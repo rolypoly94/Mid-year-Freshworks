@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Eye,
   History,
-  AlertCircle
+  AlertCircle,
+  Target
 } from 'lucide-react';
 import { ImportModal } from './ImportModal';
 import { AuditTrailModal } from './AuditTrailModal';
@@ -26,6 +27,8 @@ interface AdminViewProps {
   commitProgress: { current: number, total: number };
   onParse: (file: File) => Promise<any>;
   onCommit: (rows: any[]) => Promise<any>;
+  onParseGoals: (file: File) => Promise<any>;
+  onCommitGoals: (rows: any[]) => Promise<any>;
   onDownloadReport: (data: Employee[], filename: string) => void;
   onTemplateDownload: () => void;
   onProxyManager: (email: string) => void;
@@ -39,6 +42,8 @@ export const AdminView = ({
   commitProgress,
   onParse,
   onCommit,
+  onParseGoals,
+  onCommitGoals,
   onDownloadReport, 
   onTemplateDownload,
   onProxyManager,
@@ -47,6 +52,36 @@ export const AdminView = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedManagers, setExpandedManagers] = useState<Record<string, boolean>>({});
   const [selectedAuditEmployee, setSelectedAuditEmployee] = useState<Employee | null>(null);
+
+  const [isImportingGoals, setIsImportingGoals] = useState(false);
+  const [goalsImportResults, setGoalsImportResults] = useState<{ updated: number; skipped: number; warnings: string[] } | null>(null);
+  const [showGoalsResults, setShowGoalsResults] = useState(false);
+  const goalsInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleGoalsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingGoals(true);
+    try {
+      const parsedRows = await onParseGoals(file);
+      if (parsedRows) {
+        const result = await onCommitGoals(parsedRows);
+        if (result) {
+          setGoalsImportResults(result);
+          setShowGoalsResults(true);
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('Goals import failed: ' + err.message, 'error');
+    } finally {
+      setIsImportingGoals(false);
+      if (goalsInputRef.current) {
+        goalsInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleAdminDownload = () => {
     if (employees.length === 0) {
@@ -121,6 +156,22 @@ export const AdminView = ({
             >
               <Upload className="w-4 h-4 mr-2" />
               Import Data
+            </Button>
+            <input 
+              type="file" 
+              ref={goalsInputRef} 
+              className="hidden" 
+              accept=".xlsx" 
+              onChange={handleGoalsFileChange} 
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => goalsInputRef.current?.click()}
+              disabled={isImportingGoals || isCommitting}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {isImportingGoals ? 'Importing Goals...' : 'Import Goals'}
             </Button>
             <Button variant="ghost" className="text-gray-400 hover:text-blue-600 hover:bg-blue-50" size="sm" onClick={onTemplateDownload}>
               <Download className="w-4 h-4 mr-2" />
@@ -316,6 +367,70 @@ export const AdminView = ({
           </div>
         </Card>
       </div>
+
+      {/* Goals Import Results Modal */}
+      {showGoalsResults && goalsImportResults && (
+        <>
+          <div 
+            onClick={() => setShowGoalsResults(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[110]"
+          />
+          <div className="fixed inset-0 flex items-center justify-center p-4 z-[120]">
+            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl p-8 border border-gray-100 max-h-[85vh] flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-600">
+                  <Target className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-gray-900">Goals Import Summary</h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">H1 2026 CYCLE OBJECTIVES</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Successfully Updated</p>
+                  <p className="text-2xl font-black text-emerald-700">{goalsImportResults.updated}</p>
+                </div>
+                <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 text-center">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">Skipped / Warnings</p>
+                  <p className="text-2xl font-black text-amber-700">{goalsImportResults.skipped}</p>
+                </div>
+              </div>
+
+              {goalsImportResults.warnings && goalsImportResults.warnings.length > 0 ? (
+                <div className="flex-1 overflow-y-auto mb-6 pr-2">
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                    <AlertCircle className="w-4 h-4" /> Import Warnings ({goalsImportResults.warnings.length})
+                  </p>
+                  <div className="space-y-2 max-h-[250px] overflow-y-auto bg-gray-50/50 border border-gray-100 rounded-2xl p-4">
+                    {goalsImportResults.warnings.map((warn, i) => (
+                      <div key={i} className="text-xs font-semibold text-gray-600 leading-relaxed flex items-start gap-2">
+                        <span className="text-amber-500 font-bold mt-0.5">•</span>
+                        <span>{warn}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-6 text-center">
+                  <p className="text-sm font-semibold text-gray-500">
+                    🎉 Excellent! All goals mapped to existing employee records perfectly with zero warnings.
+                  </p>
+                </div>
+              )}
+
+              <Button 
+                variant="primary" 
+                className="w-full mt-4"
+                onClick={() => setShowGoalsResults(false)}
+              >
+                Close Summary
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
