@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  doc, 
-  writeBatch, 
-  getDocs, 
-  collection, 
-  query, 
-  where, 
+import {
+  doc,
+  writeBatch,
+  getDocs,
+  collection,
+  query,
+  where,
+  documentId,
   serverTimestamp,
   addDoc
 } from 'firebase/firestore';
@@ -218,20 +219,6 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             const numDirectReportsStr = getVal(row, 'Number of Direct Reports', 'Reports');
             const numDirectReports = numDirectReportsStr ? Number(numDirectReportsStr) : null;
 
-            const goalsRaw = getVal(row, 'Goals', 'Key Goals', '2026 Goals', 'Start of Year Goals', 'Objectives', 'KPIs');
-            const goals: EmployeeGoal[] = goalsRaw 
-              ? goalsRaw.split('\n')
-                .map(g => g.trim().replace(/^[-*•\s\d)]+/, '').trim())
-                .filter(g => g.length > 2)
-                .map(g => ({
-                  goal_name: g,
-                  goal_category: 'Performance Objective',
-                  goal_description: '',
-                  status: 'Progressing',
-                  due_date: ''
-                }))
-              : [];
-
             const employee: Employee = {
               id: rawEmail,
               employee_email: rawEmail,
@@ -257,7 +244,6 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
               num_direct_reports: numDirectReports !== null && !isNaN(numDirectReports) ? numDirectReports : null,
               rating_2024: getVal(row, '2024 FPI Rating'),
               rating_2025: getVal(row, '2025 FPI Rating'),
-              goals: goals.length > 0 ? goals : undefined,
               management_chain_l6: getVal(row, 'Management Chain - Level 06'),
               management_chain_l7: getVal(row, 'Management Chain - Level 07'),
               management_chain_l8: getVal(row, 'Management Chain - Level 08'),
@@ -485,46 +471,27 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     const warnings: string[] = [];
 
     try {
-      // 1. Group rows by Email - Work
-      const goalsByEmail = new Map<string, any[]>();
-      
+      const goalsByEmail = new Map<string, EmployeeGoal[]>();
+
       rawRows.forEach((row) => {
         const rawEmail = getVal(row, 'Email - Work', 'Email Work', 'Email', 'Employee Email').trim().toLowerCase();
-        if (!rawEmail) {
-          // Skip silently
-          return;
-        }
+        if (!rawEmail) return;
 
-        const category = getVal(row, 'Goals_group: Goal Category', 'Goal Category', 'Category');
-        const description = getVal(row, 'Goals_group: Goal Description', 'Goal Description', 'Description');
-        const status = getVal(row, 'Goals_group: Status', 'Goal Status', 'Status') || 'Not Started';
-        const name = getVal(row, 'Goals_group: Goal Name', 'Goal Name', 'Name');
-        const dueDateRaw = getVal(row, 'Goals_group: Due Date', 'Due Date');
         const weightRaw = getVal(row, 'Formula1', 'Weight');
+        const weightNum = weightRaw ? parseFloat(weightRaw) : NaN;
 
-        const computedDueDate = parseToISOString(dueDateRaw);
-
-        let computedWeight: number | undefined = undefined;
-        if (weightRaw) {
-          const numWeight = parseFloat(weightRaw);
-          if (!isNaN(numWeight)) {
-            computedWeight = numWeight;
-          }
-        }
-
-        const goalObj = {
-          goal_name: name || 'Untitled Goal',
-          goal_category: category || 'General Objective',
-          goal_description: description || '',
-          status: status,
-          due_date: computedDueDate,
-          weight: computedWeight
+        const goal: EmployeeGoal = {
+          goal_name: getVal(row, 'Goals_group: Goal Name', 'Goal Name', 'Name') || 'Untitled Goal',
+          goal_category: getVal(row, 'Goals_group: Goal Category', 'Goal Category', 'Category') || 'General Objective',
+          goal_description: getVal(row, 'Goals_group: Goal Description', 'Goal Description', 'Description'),
+          status: getVal(row, 'Goals_group: Status', 'Goal Status', 'Status') || 'Not Started',
+          due_date: parseToISOString(getVal(row, 'Goals_group: Due Date', 'Due Date')),
+          weight: isNaN(weightNum) ? undefined : weightNum,
         };
 
-        if (!goalsByEmail.has(rawEmail)) {
-          goalsByEmail.set(rawEmail, []);
-        }
-        goalsByEmail.get(rawEmail)!.push(goalObj);
+        const existing = goalsByEmail.get(rawEmail);
+        if (existing) existing.push(goal);
+        else goalsByEmail.set(rawEmail, [goal]);
       });
 
       if (goalsByEmail.size === 0) {
@@ -533,32 +500,32 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
         return { updated: 0, skipped: 0, warnings };
       }
 
-      // Check which emails exist in Firestore
+      // Look up employees by doc-id (writes also use email-as-id, so this avoids
+      // the orphan-doc risk of querying by an unrelated indexed field).
       const emailsList = Array.from(goalsByEmail.keys());
-      const existingMap = new Map<string, boolean>();
+      const existingEmails = new Set<string>();
 
       if (emailsList.length > 0) {
         const CHUNK_SIZE = 30;
         const promises = [];
         for (let i = 0; i < emailsList.length; i += CHUNK_SIZE) {
           const chunk = emailsList.slice(i, i + CHUNK_SIZE);
-          const q = query(collection(db, 'employees'), where('employee_email', 'in', chunk));
+          const q = query(collection(db, 'employees'), where(documentId(), 'in', chunk));
           promises.push(getDocs(q));
         }
         const queryResults = await Promise.all(promises);
         queryResults.forEach(snapshot => {
           snapshot.docs.forEach(docSnap => {
-            const email = docSnap.id.toLowerCase();
-            existingMap.set(email, true);
+            existingEmails.add(docSnap.id.toLowerCase());
           });
         });
       }
 
-      const updateTargets: { email: string; goals: any[] }[] = [];
+      const updateTargets: { email: string; goals: EmployeeGoal[] }[] = [];
       const BATCH_SIZE = 100;
 
       goalsByEmail.forEach((goals, email) => {
-        if (existingMap.has(email)) {
+        if (existingEmails.has(email)) {
           updateTargets.push({ email, goals });
         } else {
           skipped++;
