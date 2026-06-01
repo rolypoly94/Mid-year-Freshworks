@@ -60,7 +60,7 @@ async function startServer() {
       firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
     } else {
        console.warn('firebase-applet-config.json not found');
-    }
+     }
   } catch (err) {
     console.error('Error loading firebase config:', err);
   }
