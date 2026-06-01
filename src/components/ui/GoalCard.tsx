@@ -1,7 +1,7 @@
 import React from 'react';
 import { Clock } from 'lucide-react';
 import { EmployeeGoal } from '../../types';
-import { cn } from '../../lib/utils';
+import { cn, parseDateString } from '../../lib/utils';
 
 export interface GoalCardProps {
   goal: EmployeeGoal;
@@ -36,8 +36,8 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, idx }) => {
   const formattedDate = (dStr?: string) => {
     if (!dStr) return '';
     try {
-      const date = new Date(dStr);
-      if (isNaN(date.getTime())) return dStr;
+      const date = parseDateString(dStr);
+      if (!date || isNaN(date.getTime())) return dStr;
       return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',

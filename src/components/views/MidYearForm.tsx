@@ -3,7 +3,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { MidYearCheckin, Employee, GreatReflection, GreatPillar } from '../../types';
-import { cn } from '../../lib/utils';
+import { cn, parseDateString } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -240,19 +240,11 @@ export const MidYearForm = ({
   // Format date helper
   const formatDate = (dateStr?: string | number | Date | null) => {
     if (!dateStr) return 'N/A';
-    let targetDate: Date;
-    
-    const num = Number(dateStr);
-    if (!isNaN(num) && num > 10000 && num < 80000) {
-      const excelEpoch = new Date(1899, 11, 30);
-      targetDate = new Date(excelEpoch.getTime() + num * 86400000);
-    } else {
-      targetDate = new Date(dateStr);
-    }
+    const parsedDate = parseDateString(dateStr);
+    if (!parsedDate) return String(dateStr);
     
     try {
-      if (isNaN(targetDate.getTime())) return String(dateStr);
-      return targetDate.toLocaleDateString('en-US', {
+      return parsedDate.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'

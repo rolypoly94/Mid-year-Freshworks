@@ -11,6 +11,7 @@ import {
   documentId
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { parseDateString } from '../lib/utils';
 import { Employee, ImportResult, ImportRow, ImportBucket, EmployeeGoal } from '../types';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
@@ -173,8 +174,8 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             // Termination date warning
             if (termDateStr) {
               try {
-                const termDate = new Date(termDateStr);
-                if (!isNaN(termDate.getTime())) {
+                const termDate = parseDateString(termDateStr);
+                if (termDate && !isNaN(termDate.getTime())) {
                   const today = new Date();
                   const diffDays = (termDate.getTime() - today.getTime()) / (1000 * 3600 * 24);
                   if (diffDays <= 14) {

@@ -1,4 +1,5 @@
 import type { Employee, MidYearCheckin, ManagerPrivateData } from '../types';
+import { parseDateString } from './utils';
 
 export const RATING_OPTIONS = [
   'Exceptional Results',
@@ -264,8 +265,8 @@ export function buildDraftReviewModal(
       const categoryText = g.goal_category ? `*[${g.goal_category}]* ` : '';
       const formattedDue = g.due_date ? (() => {
         try {
-          const date = new Date(g.due_date);
-          if (isNaN(date.getTime())) return g.due_date;
+          const date = parseDateString(g.due_date);
+          if (!date || isNaN(date.getTime())) return g.due_date;
           return date.toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
