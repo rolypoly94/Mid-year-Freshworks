@@ -1,4 +1,5 @@
 import type { Employee, MidYearCheckin, ManagerPrivateData } from '../types';
+import { PROMOTION_READINESS_OPTIONS } from './promotion-readiness';
 
 export const RATING_OPTIONS = [
   'Exceptional Results',
@@ -217,6 +218,10 @@ export function buildDraftReviewModal(
     privateData?.performance_trending_rating ||
     c?.performance_trending_rating ||
     '';
+  const initialPromotion =
+    privateData?.promotion_readiness ||
+    c?.promotion_readiness ||
+    '';
 
   const ratingOption = (r: string) => ({
     text: { type: 'plain_text', text: r },
@@ -237,6 +242,28 @@ export function buildDraftReviewModal(
   };
   if (initialRating && RATING_OPTIONS.includes(initialRating as any)) {
     ratingBlock.element.initial_option = ratingOption(initialRating);
+  }
+
+  const promotionOption = (o: { value: string; label: string }) => ({
+    text: { type: 'plain_text', text: o.label },
+    value: o.value,
+  });
+
+  const promotionBlock: any = {
+    type: 'input',
+    block_id: 'promotion_readiness_block',
+    optional: true,
+    label: { type: 'plain_text', text: 'Promotion readiness' },
+    element: {
+      type: 'static_select',
+      action_id: 'promotion_readiness',
+      placeholder: { type: 'plain_text', text: 'Select readiness' },
+      options: PROMOTION_READINESS_OPTIONS.map(promotionOption),
+    },
+  };
+  const initialPromoOpt = PROMOTION_READINESS_OPTIONS.find(o => o.value === initialPromotion);
+  if (initialPromoOpt) {
+    promotionBlock.element.initial_option = promotionOption(initialPromoOpt);
   }
 
   const contextLine = [
@@ -319,7 +346,22 @@ export function buildDraftReviewModal(
         initial_value: c?.development_evolution || '',
       },
     },
+    {
+      type: 'input',
+      block_id: 'leadership_mastery_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'Leadership mastery' },
+      hint: { type: 'plain_text', text: 'How are they demonstrating GREAT leadership behaviors at their grade?' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'leadership_mastery',
+        multiline: true,
+        max_length: 2900,
+        initial_value: c?.leadership_mastery || '',
+      },
+    },
     ratingBlock,
+    promotionBlock,
     {
       type: 'input',
       block_id: 'save_mode_block',
