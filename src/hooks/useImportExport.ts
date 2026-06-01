@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import {
-  doc,
-  writeBatch,
-  getDocs,
-  collection,
-  query,
-  where,
-  documentId,
+import { 
+  doc, 
+  writeBatch, 
+  getDocs, 
+  collection, 
+  query, 
+  where, 
   serverTimestamp,
-  addDoc
+  addDoc,
+  documentId
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Employee, ImportResult, ImportRow, ImportBucket, EmployeeGoal } from '../types';
@@ -134,7 +134,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
             const promises = [];
             for (let i = 0; i < emailsInSheet.length; i += CHUNK_SIZE) {
               const chunk = emailsInSheet.slice(i, i + CHUNK_SIZE);
-              const q = query(collection(db, 'employees'), where('employee_email', 'in', chunk));
+              const q = query(collection(db, 'employees'), where(documentId(), 'in', chunk));
               promises.push(getDocs(q));
             }
             const results = await Promise.all(promises);
@@ -433,7 +433,8 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     setIsImporting(true);
     try {
       const XLSX = await import('xlsx');
-      const data = await file.arrayBuffer();
+      const arrayBuffer = await file.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       
       if (workbook.SheetNames.length === 0) {
@@ -471,27 +472,46 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
     const warnings: string[] = [];
 
     try {
-      const goalsByEmail = new Map<string, EmployeeGoal[]>();
-
+      // 1. Group rows by Email - Work
+      const goalsByEmail = new Map<string, any[]>();
+      
       rawRows.forEach((row) => {
         const rawEmail = getVal(row, 'Email - Work', 'Email Work', 'Email', 'Employee Email').trim().toLowerCase();
-        if (!rawEmail) return;
+        if (!rawEmail) {
+          // Skip silently
+          return;
+        }
 
+        const category = getVal(row, 'Goals_group: Goal Category', 'Goal Category', 'Category');
+        const description = getVal(row, 'Goals_group: Goal Description', 'Goal Description', 'Description');
+        const status = getVal(row, 'Goals_group: Status', 'Goal Status', 'Status') || 'Not Started';
+        const name = getVal(row, 'Goals_group: Goal Name', 'Goal Name', 'Name');
+        const dueDateRaw = getVal(row, 'Goals_group: Due Date', 'Due Date');
         const weightRaw = getVal(row, 'Formula1', 'Weight');
-        const weightNum = weightRaw ? parseFloat(weightRaw) : NaN;
 
-        const goal: EmployeeGoal = {
-          goal_name: getVal(row, 'Goals_group: Goal Name', 'Goal Name', 'Name') || 'Untitled Goal',
-          goal_category: getVal(row, 'Goals_group: Goal Category', 'Goal Category', 'Category') || 'General Objective',
-          goal_description: getVal(row, 'Goals_group: Goal Description', 'Goal Description', 'Description'),
-          status: getVal(row, 'Goals_group: Status', 'Goal Status', 'Status') || 'Not Started',
-          due_date: parseToISOString(getVal(row, 'Goals_group: Due Date', 'Due Date')),
-          weight: isNaN(weightNum) ? undefined : weightNum,
+        const computedDueDate = parseToISOString(dueDateRaw);
+
+        let computedWeight: number | undefined = undefined;
+        if (weightRaw) {
+          const numWeight = parseFloat(weightRaw);
+          if (!isNaN(numWeight)) {
+            computedWeight = numWeight;
+          }
+        }
+
+        const goalObj = {
+          goal_name: name || 'Untitled Goal',
+          goal_category: category || 'General Objective',
+          goal_description: description || '',
+          status: status,
+          due_date: computedDueDate,
+          weight: computedWeight
         };
 
-        const existing = goalsByEmail.get(rawEmail);
-        if (existing) existing.push(goal);
-        else goalsByEmail.set(rawEmail, [goal]);
+        if (!goalsByEmail.has(rawEmail)) {
+          goalsByEmail.set(rawEmail, []);
+        }
+        goalsByEmail.get(rawEmail)!.push(goalObj);
       });
 
       if (goalsByEmail.size === 0) {
@@ -500,10 +520,9 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
         return { updated: 0, skipped: 0, warnings };
       }
 
-      // Look up employees by doc-id (writes also use email-as-id, so this avoids
-      // the orphan-doc risk of querying by an unrelated indexed field).
+      // Check which emails exist in Firestore
       const emailsList = Array.from(goalsByEmail.keys());
-      const existingEmails = new Set<string>();
+      const existingMap = new Map<string, boolean>();
 
       if (emailsList.length > 0) {
         const CHUNK_SIZE = 30;
@@ -516,16 +535,17 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
         const queryResults = await Promise.all(promises);
         queryResults.forEach(snapshot => {
           snapshot.docs.forEach(docSnap => {
-            existingEmails.add(docSnap.id.toLowerCase());
+            const email = docSnap.id.toLowerCase();
+            existingMap.set(email, true);
           });
         });
       }
 
-      const updateTargets: { email: string; goals: EmployeeGoal[] }[] = [];
+      const updateTargets: { email: string; goals: any[] }[] = [];
       const BATCH_SIZE = 100;
 
       goalsByEmail.forEach((goals, email) => {
-        if (existingEmails.has(email)) {
+        if (existingMap.has(email)) {
           updateTargets.push({ email, goals });
         } else {
           skipped++;

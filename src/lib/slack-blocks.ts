@@ -260,24 +260,32 @@ export function buildDraftReviewModal(
   ];
 
   if (employee.goals && employee.goals.length > 0) {
-    const formatDue = (iso?: string) => {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
     const goalsMarkdown = employee.goals.map((g, idx) => {
-      const due = formatDue(g.due_date);
-      const suffix = due ? ` _(due ${due})_` : '';
-      return `${idx + 1}. *${g.goal_name}* — ${g.status || 'Not Started'}${suffix}`;
+      const categoryText = g.goal_category ? `*[${g.goal_category}]* ` : '';
+      const formattedDue = g.due_date ? (() => {
+        try {
+          const date = new Date(g.due_date);
+          if (isNaN(date.getTime())) return g.due_date;
+          return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
+        } catch {
+          return g.due_date;
+        }
+      })() : '';
+      const dueText = formattedDue ? ` (Due: ${formattedDue})` : '';
+      const wtText = (g.weight !== undefined && g.weight !== null) ? ` [Wt: ${g.weight}%]` : '';
+      return `${idx + 1}. ${categoryText}*${g.goal_name}*${dueText}${wtText}`;
     }).join('\n');
 
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Goals for this cycle:*\n${goalsMarkdown}`,
-      },
+        text: `*Start-of-Year Goals:*\n\n${goalsMarkdown}`
+      }
     });
   }
 

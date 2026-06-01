@@ -21,7 +21,8 @@ const VALID_HEADERS = [
 
 self.onmessage = (e: MessageEvent<ArrayBuffer>) => {
   try {
-    const workbook = XLSX.read(e.data, { type: 'array' });
+    const data = new Uint8Array(e.data);
+    const workbook = XLSX.read(data, { type: 'array' });
     const sheets: ParsedSheet[] = workbook.SheetNames.map(name => {
       const sheet = workbook.Sheets[name];
       const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];

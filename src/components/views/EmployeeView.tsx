@@ -4,22 +4,23 @@ import { db } from '../../firebase';
 import { Employee, EmployeeAuditEntry, MidYearCheckin } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { GoalCard } from '../ui/GoalCard';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { formatDate, cn } from '../../lib/utils';
 import { User } from 'firebase/auth';
 import { AuditTrailSection } from './AuditTrailSection';
 import { OverrideModal } from './OverrideModal';
-import {
-  Users,
-  Briefcase,
-  TrendingUp,
-  Calendar,
-  Award,
-  Target,
-  CheckCircle2,
+import { GoalCard } from '../ui/GoalCard';
+import { 
+  Users, 
+  Briefcase, 
+  TrendingUp, 
+  Calendar, 
+  Award, 
+  Target, 
+  CheckCircle2, 
   Check,
-  ShieldAlert
+  ShieldAlert,
+  Clock
 } from 'lucide-react';
 
 interface EmployeeViewProps {
@@ -31,7 +32,7 @@ interface EmployeeViewProps {
   showToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const EmployeeView = ({
+export const EmployeeView = ({ 
   employee, 
   isAdmin, 
   user,
@@ -211,6 +212,7 @@ export const EmployeeView = ({
             </Card>
           )}
 
+          {/* Section: Start of Year Goals */}
           {employee.goals && employee.goals.length > 0 && (
             <Card className="p-8 bg-blue-50/20 border border-blue-500/10 shadow-[0_2px_12px_rgba(0,0,0,0.01)] rounded-[2rem]">
               <div className="flex items-center gap-3 mb-5">
@@ -218,8 +220,8 @@ export const EmployeeView = ({
                   <Target className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-md font-bold text-gray-900 leading-tight">Start of Year Goals</h4>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Your Objectives for This Cycle</p>
+                  <h4 className="text-md font-bold text-gray-900 leading-tight">Start of Year Goals (H1 2026)</h4>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Your Objectives for This Fiscal Cycle</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -5,13 +5,13 @@ import { Modal } from '../ui/Modal';
 import { MidYearCheckin, Employee, GreatReflection, GreatPillar } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  CheckCircle2,
-  Award,
-  TrendingUp,
-  Target,
-  Info,
-  Save,
+import { 
+  CheckCircle2, 
+  Award, 
+  TrendingUp, 
+  Target, 
+  Info, 
+  Save, 
   Loader2,
   AlertCircle,
   ShieldAlert,
@@ -21,16 +21,17 @@ import {
   Share2,
   ExternalLink,
   BookOpen,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
 
-import { GoalCard } from '../ui/GoalCard';
 import { AuditTrailSection } from './AuditTrailSection';
 import { OverrideModal } from './OverrideModal';
 import { User } from 'firebase/auth';
 import { getLevelForGrade, getPillarSlug } from '../../lib/great-questions';
 import { getLeadershipBehaviors } from '../../lib/leadership-behaviors';
 import { PROMOTION_READINESS_OPTIONS } from '../../lib/promotion-readiness';
+import { GoalCard } from '../ui/GoalCard';
 
 interface MidYearFormProps {
   employee: Employee;
@@ -414,6 +415,7 @@ export const MidYearForm = ({
         </div>
       </div>
 
+      {/* Section: Employee Goals (Set at Start of Year) */}
       {employee.goals && employee.goals.length > 0 ? (
         <Card className="p-8 bg-blue-50/20 border border-blue-500/10 rounded-[2rem] shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
           <div className="flex items-center gap-3 mb-5">
@@ -421,8 +423,8 @@ export const MidYearForm = ({
               <Target className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-[14px] font-bold text-[var(--color-apple-black)] leading-tight">Goals for this cycle</h4>
-              <p className="text-[10px] text-[var(--color-apple-gray)] uppercase tracking-wider font-semibold">Objectives set at the start of the year</p>
+              <h4 className="text-[14px] font-bold text-[var(--color-apple-black)] leading-tight">Goals for this cycle (H1 2026)</h4>
+              <p className="text-[10px] text-[var(--color-apple-gray)] uppercase tracking-wider font-semibold">Established Objectives for This Cycle</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -439,7 +441,7 @@ export const MidYearForm = ({
             </div>
             <div>
               <h4 className="text-[14px] font-bold text-gray-700 leading-tight">Start of Year Goals</h4>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Not yet on file</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">No objectives configured for this cycle</p>
             </div>
           </div>
           <p className="text-[13px] text-gray-500 leading-relaxed font-semibold">
