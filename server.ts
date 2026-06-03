@@ -17,8 +17,10 @@ import {
   buildSharedModal,
   buildLoadingModal,
   buildErrorModal,
+  buildShareInAppOnlyModal,
   RATING_OPTIONS,
 } from './src/lib/slack-blocks';
+import { PROMOTION_READINESS_OPTIONS } from './src/lib/promotion-readiness';
 import {
   lookupByEmail as slackLookupByEmail,
   getUserEmail as slackGetUserEmail,
@@ -369,8 +371,39 @@ async function startServer() {
         return handleViewLocked(payload, action, res);
       case 'share_now':
         return handleShareNow(payload, action, res);
+      case 'share_in_app_only':
+        return handleShareInAppOnly(payload, res);
       default:
         return res.status(200).send('');
+    }
+  }
+
+  // Manager clicks "Share with employee" inside the Slack draft modal.
+  // We don't share from Slack — surface a follow-up modal that links to the web
+  // app, which has the full draft + the irreversible share action.
+  async function handleShareInAppOnly(payload: any, res: any) {
+    const triggerId = payload.trigger_id;
+    if (!triggerId) return res.status(400).send('No trigger ID');
+    res.status(200).send('');
+
+    const employeeEmail = String(payload.view?.private_metadata || '').toLowerCase();
+    const employee = { employee_name: employeeEmail, employee_email: employeeEmail } as any;
+    if (db && employeeEmail) {
+      try {
+        const docSnap = await db.collection('employees').doc(employeeEmail).get();
+        if (docSnap.exists) {
+          const data = docSnap.data() as any;
+          employee.employee_name = data?.employee_name || employeeEmail;
+        }
+      } catch (err) {
+        console.error('share_in_app_only lookup failed:', err);
+      }
+    }
+
+    try {
+      await slackOpenView(triggerId, buildShareInAppOnlyModal(employee));
+    } catch (err) {
+      console.error('share_in_app_only views.open failed:', err);
     }
   }
 
@@ -696,9 +729,18 @@ async function startServer() {
     const development = String(
       values?.development_evolution_block?.development_evolution?.value || '',
     ).trim();
+    const leadershipMastery = String(
+      values?.leadership_mastery_block?.leadership_mastery?.value || '',
+    ).trim();
     const ratingValue = String(
       values?.rating_block?.rating?.selected_option?.value || '',
     );
+    const promotionValue = String(
+      values?.promotion_readiness_block?.promotion_readiness?.selected_option?.value || '',
+    );
+    const additionalNotes = String(
+      values?.additional_notes_block?.additional_notes?.value || '',
+    ).trim();
     const saveMode = String(
       values?.save_mode_block?.save_mode?.selected_option?.value || 'Draft',
     );
@@ -723,17 +765,27 @@ async function startServer() {
       });
     }
 
+    const validPromotionValues = PROMOTION_READINESS_OPTIONS.map(o => o.value) as string[];
+    if (promotionValue && !validPromotionValues.includes(promotionValue)) {
+      return res.status(200).json({
+        response_action: 'errors',
+        errors: { promotion_readiness_block: 'Invalid promotion readiness value' },
+      });
+    }
+
     const timestamp = new Date().toISOString();
     const existing = (employee.mid_year_checkin || {}) as any;
 
     // Mirror the saveFeedback logic in usePerformanceActions.ts:
-    //  - public doc stores text + status
-    //  - subcollection holds the trending rating (manager-private)
+    //  - public doc stores narrative text + status
+    //  - manager_private subcollection holds the trending rating, promotion
+    //    readiness, and calibration notes (visible only to manager + HRBP).
     const publicUpdate: any = {
       mid_year_checkin: {
         ...existing,
         key_contributions: keyContributions,
         development_evolution: development,
+        leadership_mastery: leadershipMastery,
         submitted_at: isFinal
           ? timestamp
           : existing.submitted_at || null,
@@ -747,8 +799,8 @@ async function startServer() {
     await privateRef.set(
       {
         performance_trending_rating: ratingValue || '',
-        promotion_readiness: null,
-        additional_notes: '',
+        promotion_readiness: promotionValue || null,
+        additional_notes: additionalNotes,
         updated_at: timestamp,
         manager_email: callerEmail,
         hrbp_email: (employee.hrbp_email || '').toLowerCase(),
