@@ -529,6 +529,12 @@ export const MidYearForm = ({
                   </button>
                 )}
               </div>
+              {!isShared && (
+                <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Type a rough draft, then click "Refine with AI" above to polish it.
+                </p>
+              )}
               <div className="relative group">
                 <textarea
                   className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
@@ -565,6 +571,12 @@ export const MidYearForm = ({
                   </button>
                 )}
               </div>
+              {!isShared && (
+                <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Type a rough draft, then click "Refine with AI" above to polish it.
+                </p>
+              )}
               <div className="relative group">
                 <textarea
                   className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
@@ -637,6 +649,12 @@ export const MidYearForm = ({
                 )}
               </AnimatePresence>
               
+              {!isShared && (
+                <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Type a rough draft, then click "Refine with AI" above to polish it.
+                </p>
+              )}
               <textarea
                 className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
                 placeholder="Synthesize leadership feedback here..."
