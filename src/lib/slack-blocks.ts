@@ -1,5 +1,10 @@
 import type { Employee, MidYearCheckin, ManagerPrivateData } from '../types';
 import { parseDateString } from './utils';
+import { PROMOTION_READINESS_OPTIONS } from './promotion-readiness';
+
+// Public URL of the web portal. Surfaced inside Slack modals so managers can
+// jump to the richer editing surface (AI refine, GREAT reflections, share flow).
+export const WEB_APP_URL = 'https://mid-year-performance-impact-portal-830685271954.us-west1.run.app';
 
 export const RATING_OPTIONS = [
   'Exceptional Results',
@@ -218,10 +223,23 @@ export function buildDraftReviewModal(
     privateData?.performance_trending_rating ||
     c?.performance_trending_rating ||
     '';
+  const initialPromotion =
+    privateData?.promotion_readiness ||
+    c?.promotion_readiness ||
+    '';
+  const initialAdditionalNotes =
+    privateData?.additional_notes ||
+    c?.additional_notes ||
+    '';
 
   const ratingOption = (r: string) => ({
     text: { type: 'plain_text', text: r },
     value: r,
+  });
+
+  const promotionOption = (o: { value: string; label: string }) => ({
+    text: { type: 'plain_text', text: o.label },
+    value: o.value,
   });
 
   const ratingBlock: any = {
@@ -240,6 +258,23 @@ export function buildDraftReviewModal(
     ratingBlock.element.initial_option = ratingOption(initialRating);
   }
 
+  const promotionBlock: any = {
+    type: 'input',
+    block_id: 'promotion_readiness_block',
+    optional: true,
+    label: { type: 'plain_text', text: 'Promotion readiness' },
+    element: {
+      type: 'static_select',
+      action_id: 'promotion_readiness',
+      placeholder: { type: 'plain_text', text: 'Select readiness' },
+      options: PROMOTION_READINESS_OPTIONS.map(promotionOption),
+    },
+  };
+  const initialPromoOpt = PROMOTION_READINESS_OPTIONS.find(o => o.value === initialPromotion);
+  if (initialPromoOpt) {
+    promotionBlock.element.initial_option = promotionOption(initialPromoOpt);
+  }
+
   const contextLine = [
     employee.job_title,
     employee.grade,
@@ -255,6 +290,15 @@ export function buildDraftReviewModal(
         {
           type: 'mrkdwn',
           text: `*${employee.employee_name}*${contextLine ? `  ·  ${contextLine}` : ''}`,
+        },
+      ],
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `:sparkles: Need AI refine, GREAT reflections, or to share this with the employee? <${WEB_APP_URL}|Open in the web app>.`,
         },
       ],
     },
@@ -320,7 +364,48 @@ export function buildDraftReviewModal(
         initial_value: c?.development_evolution || '',
       },
     },
+    {
+      type: 'input',
+      block_id: 'leadership_mastery_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'Leadership mastery' },
+      hint: { type: 'plain_text', text: 'How are they demonstrating GREAT leadership behaviors at their grade?' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'leadership_mastery',
+        multiline: true,
+        max_length: 2900,
+        initial_value: c?.leadership_mastery || '',
+      },
+    },
     ratingBlock,
+    promotionBlock,
+    {
+      type: 'input',
+      block_id: 'additional_notes_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'Additional notes' },
+      hint: { type: 'plain_text', text: 'Calibration notes — visible to you and HRBP only.' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'additional_notes',
+        multiline: true,
+        max_length: 2900,
+        initial_value: initialAdditionalNotes,
+      },
+    },
+    {
+      type: 'actions',
+      block_id: 'share_actions_block',
+      elements: [
+        {
+          type: 'button',
+          action_id: 'share_in_app_only',
+          text: { type: 'plain_text', text: 'Share with employee' },
+          style: 'primary',
+        },
+      ],
+    },
     {
       type: 'input',
       block_id: 'save_mode_block',
@@ -354,6 +439,39 @@ export function buildDraftReviewModal(
     submit: { type: 'plain_text', text: 'Save' },
     close: { type: 'plain_text', text: 'Cancel' },
     blocks,
+  };
+}
+
+// ─── Manager-side: shown when the manager clicks "Share with employee" in the ───
+// draft modal. Sharing is final and is intentionally web-only — this modal
+// explains that and links out to the portal.
+export function buildShareInAppOnlyModal(employee: Employee) {
+  return {
+    type: 'modal',
+    title: { type: 'plain_text', text: 'Share with employee' },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            `Sharing the check-in for *${employee.employee_name}* is a final step — once shared, the employee can read it and the form locks. ` +
+            `Please open the web app to review the full draft (including GREAT reflections) and confirm the share.`,
+        },
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: 'Open web app' },
+            url: WEB_APP_URL,
+            style: 'primary',
+          },
+        ],
+      },
+    ],
   };
 }
 
