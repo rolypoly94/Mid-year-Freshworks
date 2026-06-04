@@ -76,7 +76,7 @@ async function startServer() {
         ? admin.initializeApp({ projectId: firebaseConfig.projectId }) 
         : admin.app();
       
-      const rawDbId = firebaseConfig.firestoreDatabaseId;
+      const rawDbId = process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId;
       const dbId = (rawDbId && typeof rawDbId === 'string' && rawDbId.trim() !== '') 
         ? rawDbId.trim() 
         : '(default)';

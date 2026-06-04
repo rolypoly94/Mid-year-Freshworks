@@ -226,8 +226,15 @@ const App = () => {
     );
   }
 
+  const isLabEnv = import.meta.env.VITE_APP_ENV === 'lab';
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
+      {isLabEnv && (
+        <div className="fixed top-3 right-3 z-[100] bg-amber-500 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
+          Lab — synthetic data only
+        </div>
+      )}
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </AnimatePresence>

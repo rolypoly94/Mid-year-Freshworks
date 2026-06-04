@@ -6,10 +6,11 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use the specific database ID from config, fallback to default if empty
-const dbId = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId.trim() !== '') 
-  ? firebaseConfig.firestoreDatabaseId.trim() 
-  : undefined;
+// Build-time override (lab/staging deploys set VITE_FIRESTORE_DATABASE_ID).
+// Falls back to the value baked into firebase-applet-config.json for prod.
+const dbIdFromEnv = ((import.meta.env.VITE_FIRESTORE_DATABASE_ID as string) || '').trim();
+const dbIdFromConfig = (firebaseConfig.firestoreDatabaseId || '').trim();
+const dbId = dbIdFromEnv || dbIdFromConfig || undefined;
 
 export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
