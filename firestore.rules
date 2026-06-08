@@ -47,7 +47,7 @@ service cloud.firestore {
       return data.employee_name is string && data.employee_name.size() > 0 &&
              data.employee_email is string && data.employee_email.size() > 0 &&
              data.manager_email is string && data.manager_email.size() > 0 &&
-             data.status in ['Pending', 'Draft', 'Submitted', 'Shared', 'Acknowledged'] &&
+             data.status in ['Pending', 'Draft', 'Submitted', 'Shared', 'Acknowledged', 'Skipped'] &&
              (!('mid_year_checkin' in data) || isValidMidYearCheckin(data.mid_year_checkin, data.status));
     }
 

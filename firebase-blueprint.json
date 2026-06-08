@@ -35,7 +35,10 @@
         "manager_email": { "type": "string", "format": "email" },
         "hrbp_email": { "type": "string", "format": "email" },
         "mid_year_checkin": { "$ref": "MidYearCheckin" },
-        "status": { "type": "string", "enum": ["Pending", "Draft", "Submitted", "Shared", "Acknowledged"] },
+        "status": { "type": "string", "enum": ["Pending", "Draft", "Submitted", "Shared", "Acknowledged", "Skipped"] },
+        "skip_reason": { "type": "string" },
+        "skipped_at": { "type": "string", "format": "date-time" },
+        "skipped_by": { "type": "string" },
         "updated_at": { "type": "string", "format": "date-time" },
         "acknowledged_at": { "type": "string", "format": "date-time" }
       }

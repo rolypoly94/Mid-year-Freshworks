@@ -15,7 +15,8 @@ import {
   Eye,
   History,
   AlertCircle,
-  Target
+  Target,
+  UserCheck
 } from 'lucide-react';
 import { ImportModal } from './ImportModal';
 import { AuditTrailModal } from './AuditTrailModal';
@@ -33,6 +34,7 @@ interface AdminViewProps {
   onTemplateDownload: () => void;
   onProxyManager: (email: string) => void;
   showToast: (msg: string, type?: any) => void;
+  onSkipEmployee?: (employeeId: string, skipReason: string | null) => Promise<boolean>;
 }
 
 export const AdminView = ({ 
@@ -47,7 +49,8 @@ export const AdminView = ({
   onDownloadReport, 
   onTemplateDownload,
   onProxyManager,
-  showToast
+  showToast,
+  onSkipEmployee
 }: AdminViewProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedManagers, setExpandedManagers] = useState<Record<string, boolean>>({});
@@ -197,9 +200,17 @@ export const AdminView = ({
               <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
                 <Users className="w-6 h-6" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium text-blue-100">Across Org Pool</p>
-                <p className="text-3xl font-bold">{employees.length}</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold">{employees.filter(e => e.status !== 'Skipped').length}</p>
+                  <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest leading-none">Active</p>
+                </div>
+                {employees.some(e => e.status === 'Skipped') && (
+                  <p className="text-[10px] text-blue-100/90 mt-1.5 font-bold uppercase tracking-widest leading-none">
+                    {employees.filter(e => e.status === 'Skipped').length} Skipped / Inactive
+                  </p>
+                )}
               </div>
             </div>
           </Card>
@@ -210,7 +221,7 @@ export const AdminView = ({
               </div>
               <div>
                 <p className="text-sm font-medium text-amber-100">Total Pending</p>
-                <p className="text-3xl font-bold">{employees.filter(e => e.status === 'Pending').length}</p>
+                <p className="text-3xl font-bold">{employees.filter(e => e.status === 'Pending' || e.status === 'Draft').length}</p>
               </div>
             </div>
           </Card>
@@ -252,7 +263,9 @@ export const AdminView = ({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {managerStats.map((manager) => {
-                  const rate = Math.round((manager.completed / manager.total) * 100);
+                  const skippedCount = manager.reports.filter(r => r.status === 'Skipped').length;
+                  const activeTotal = manager.total - skippedCount;
+                  const rate = activeTotal > 0 ? Math.round((manager.completed / activeTotal) * 100) : 100;
                   const isExpanded = expandedManagers[manager.email] || false;
 
                   return (
@@ -279,7 +292,16 @@ export const AdminView = ({
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-medium text-gray-700">{manager.total}</td>
+                        <td className="px-6 py-4 font-medium text-gray-700">
+                          <div className="flex items-center gap-1.5">
+                            <span>{manager.total}</span>
+                            {skippedCount > 0 && (
+                              <span className="text-purple-600 font-bold text-[10px]" title={`${skippedCount} skipped reviews`}>
+                                ({skippedCount} skipped)
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
                             <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-[100px]">
@@ -289,8 +311,8 @@ export const AdminView = ({
                               />
                             </div>
                             <div className="flex gap-3 text-xs font-bold">
-                              <span className="text-emerald-600">{manager.completed}</span>
-                              <span className="text-amber-600">{manager.pending}</span>
+                              <span className="text-emerald-600" title="Completed active reviews">{manager.completed}</span>
+                              <span className="text-amber-600" title="Pending active reviews">{manager.pending}</span>
                             </div>
                           </div>
                         </td>
@@ -331,25 +353,62 @@ export const AdminView = ({
                                           report.status === 'Shared' ? "bg-blue-50 text-blue-700 border-blue-100" :
                                           report.status === 'Submitted' ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
                                           report.status === 'Draft' ? "bg-gray-50 text-gray-700 border-gray-100" :
+                                          report.status === 'Skipped' ? "bg-purple-50 text-purple-700 border-purple-100/60" :
                                           "bg-amber-50 text-amber-700 border-amber-100"
                                         )}>
-                                          {report.status === 'Submitted' ? 'Feedback Recorded' : report.status}
+                                          {report.status === 'Submitted' ? 'Feedback Recorded' : 
+                                           report.status === 'Skipped' ? `Skipped (${report.skip_reason || 'Inactive'})` :
+                                           report.status}
                                         </span>
                                       </td>
                                       <td className="px-6 py-3 text-right">
-                                        <button 
-                                          onClick={() => setSelectedAuditEmployee(report)}
-                                          disabled={report.status !== 'Submitted'}
-                                          className={cn(
-                                            "inline-flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all",
-                                            report.status === 'Submitted' 
-                                              ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
-                                              : "text-gray-300 cursor-not-allowed"
+                                        <div className="flex items-center justify-end gap-3">
+                                          {onSkipEmployee && (
+                                            <div>
+                                              {report.status !== 'Skipped' ? (
+                                                <select
+                                                  onChange={async (e) => {
+                                                    const reason = e.target.value;
+                                                    if (reason) {
+                                                      await onSkipEmployee(report.id, reason);
+                                                    }
+                                                    e.target.value = "";
+                                                  }}
+                                                  value=""
+                                                  className="text-[10px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 px-2.5 py-1.5 rounded-xl border border-transparent focus:ring-2 focus:ring-purple-200 outline-none transition-all uppercase tracking-wider cursor-pointer font-sans"
+                                                >
+                                                  <option value="" disabled>Skip Review...</option>
+                                                  <option value="On Leave">On Leave</option>
+                                                  <option value="Serving Notice Period">Serving Notice</option>
+                                                  <option value="Maternity Leave">Maternity Leave</option>
+                                                  <option value="Other">Other</option>
+                                                </select>
+                                              ) : (
+                                                <button
+                                                  onClick={() => onSkipEmployee(report.id, null)}
+                                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-xl transition-all uppercase tracking-wider cursor-pointer"
+                                                >
+                                                  <UserCheck className="w-3 h-3" />
+                                                  Reactivate
+                                                </button>
+                                              )}
+                                            </div>
                                           )}
-                                        >
-                                          <History className="w-3.5 h-3.5" />
-                                          View Audit Trail
-                                        </button>
+
+                                          <button 
+                                            onClick={() => setSelectedAuditEmployee(report)}
+                                            disabled={report.status !== 'Submitted' && report.status !== 'Skipped'}
+                                            className={cn(
+                                              "inline-flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all text-[10px]",
+                                              (report.status === 'Submitted' || report.status === 'Skipped')
+                                                ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+                                                : "text-gray-300 cursor-not-allowed"
+                                            )}
+                                          >
+                                            <History className="w-3.5 h-3.5" />
+                                            View Audit
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   ))}

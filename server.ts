@@ -172,13 +172,20 @@ async function startServer() {
         4. Organize with bullet points if multiple details are raised.
         5. DO NOT invent completely new achievements or facts that were not in the draft.
 
+        STRICT STYLE AND FORMATTING RULES (NO ASTERISKS):
+        - You MUST NOT use any asterisks (*) or markdown bolding (**). Absolutely no double asterisks.
+        - Avoid all markdown elements like headings (#), italicization (_), or code blocks.
+        - If bullet points are used, use simple dashes followed by a space (e.g., "- ") or bullet points (e.g., "• ") without any surrounding bold markers.
+        - Keep the formatting completely natural, clean, and plain-text based. Make it feel natural and human to read in a standard text area without raw markdown artifacts.
+        - Use normal capital letters for titles/headings on separate lines if needed, or normal sentence text.
+
         Format your final response:
         - If rejected: "[REJECT] Your feedback is too brief/generic. Please provide some specific examples of [mention specific examples context] to refine successfully."
         - If refined: Show ONLY the refined text. No preamble, no wrapper, no intro ("Here is...").
       `;
 
       const result = await ai.models.generateContent({
-        model: "gemini-flash-latest",
+        model: "gemini-3.5-flash",
         contents: prompt,
       });
 
@@ -187,11 +194,16 @@ async function startServer() {
         throw new Error('Gemini returned empty response');
       }
 
-      const trimmedResult = refinedText.trim();
+      let trimmedResult = refinedText.trim();
       if (trimmedResult.startsWith('[REJECT]')) {
         const reason = trimmedResult.replace('[REJECT]', '').trim();
         return res.status(400).json({ error: reason });
       }
+
+      // Stripping all markdown asterisks so managers get beautifully clean text
+      trimmedResult = trimmedResult.replace(/\*\*/g, ''); // strip double asterisks
+      trimmedResult = trimmedResult.replace(/(^|\n)\*\s+/g, '$1- '); // convert '*' starts to simple list dashes
+      trimmedResult = trimmedResult.replace(/\*/g, ''); // strip any loose single asterisks
 
       res.json({ refinedText: trimmedResult });
     } catch (error: any) {

@@ -10,6 +10,7 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isOverriding, setIsOverriding] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
 
   const saveFeedback = async (employeeId: string, data: MidYearCheckin, status: 'Draft' | 'Submitted', user: User | null) => {
     const isFinal = status === 'Submitted';
@@ -212,5 +213,62 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
     }
   };
 
-  return { isSaving, isSavingDraft, isSharing, isOverriding, saveFeedback, shareReview, adminOverrideReview };
+  const skipEmployeeReview = async (employeeId: string, skipReason: string | null, user: User | null) => {
+    if (!user) return false;
+    setIsSkipping(true);
+    try {
+      const docRef = doc(db, 'employees', employeeId);
+      const timestamp = new Date().toISOString();
+      
+      const updateData: any = {
+        status: skipReason ? 'Skipped' : 'Pending',
+        updated_at: timestamp,
+      };
+      
+      if (skipReason) {
+        updateData.skip_reason = skipReason;
+        updateData.skipped_at = timestamp;
+        updateData.skipped_by = user.email?.toLowerCase();
+      } else {
+        updateData.skip_reason = null;
+        updateData.skipped_at = null;
+        updateData.skipped_by = null;
+      }
+      
+      await updateDoc(docRef, updateData);
+      
+      // Audit log
+      const auditRef = collection(db, 'employee_audit');
+      const auditEntry: EmployeeAuditEntry = {
+        employee_id: employeeId,
+        actor_email: user.email?.toLowerCase() || '',
+        actor_name: user.displayName || null,
+        event_type: 'admin_override',
+        timestamp: timestamp,
+        notes: skipReason ? `Marked as skipped: ${skipReason}` : 'Re-activated from skipped status',
+      };
+      await addDoc(auditRef, auditEntry);
+      
+      showToast(skipReason ? `Review skipped: ${skipReason}` : 'Employee re-activated for reviews.', 'success');
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `employees/${employeeId}`);
+      showToast('Failed to change skip status on employee.', 'error');
+      return false;
+    } finally {
+      setIsSkipping(false);
+    }
+  };
+
+  return { 
+    isSaving, 
+    isSavingDraft, 
+    isSharing, 
+    isOverriding, 
+    isSkipping,
+    saveFeedback, 
+    shareReview, 
+    adminOverrideReview,
+    skipEmployeeReview
+  };
 };

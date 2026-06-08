@@ -80,8 +80,19 @@ const App = () => {
     isOverriding, 
     saveFeedback, 
     shareReview, 
-    adminOverrideReview 
+    adminOverrideReview,
+    skipEmployeeReview
   } = usePerformanceActions(showToast);
+
+  const handleSkipEmployee = async (employeeId: string, skipReason: string | null) => {
+    const success = await skipEmployeeReview(employeeId, skipReason, user);
+    if (success) {
+      refreshAdminEmployees();
+      refreshHrbpEmployees();
+    }
+    return success;
+  };
+
   const { 
     isImporting, 
     isCommitting, 
@@ -345,6 +356,7 @@ const App = () => {
               showToast(`Viewing as ${email}`, 'info');
             }}
             showToast={showToast}
+            onSkipEmployee={handleSkipEmployee}
           />
         ) : viewMode === 'hrbp' && isHRBP ? (
           <HRBPView 

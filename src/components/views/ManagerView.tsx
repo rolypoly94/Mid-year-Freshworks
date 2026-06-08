@@ -64,8 +64,9 @@ export const ManagerView = React.memo(({
     (e.employee_id?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
-  const completedCount = employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length;
-  const totalCount = employees.length;
+  const activeReports = employees.filter(e => e.status !== 'Skipped');
+  const completedCount = activeReports.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length;
+  const totalCount = activeReports.length;
   const daysLeft = getDaysUntilDeadline();
 
   return (
@@ -180,6 +181,8 @@ export const ManagerView = React.memo(({
                          <CheckCircle2 className="w-4 h-4 text-indigo-500" />
                        ) : emp.status === 'Draft' ? (
                          <Clock className="w-4 h-4 text-amber-500" />
+                       ) : emp.status === 'Skipped' ? (
+                         <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md border border-purple-100 whitespace-nowrap">Skipped</span>
                        ) : (
                          <AlertCircle className="w-4 h-4 text-gray-300" />
                        )}

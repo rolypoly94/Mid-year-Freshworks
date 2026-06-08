@@ -122,8 +122,10 @@ export const MidYearForm = ({
   const [isBehaviorsExpanded, setIsBehaviorsExpanded] = React.useState(false);
   const [refiningField, setRefiningField] = React.useState<string | null>(null);
 
-  const isFinalized = ['Submitted', 'Shared', 'Acknowledged'].includes(employee.status);
+  const isSkipped = employee.status === 'Skipped';
+  const isFinalized = ['Submitted', 'Shared', 'Acknowledged', 'Skipped'].includes(employee.status);
   const isShared = ['Shared', 'Acknowledged'].includes(employee.status);
+  const isFieldsDisabled = isShared || isSkipped;
 
   // Dirty state: have we changed anything since the form was hydrated?
   const isDirty = JSON.stringify(midYearData) !== initialDataStrRef.current;
@@ -324,6 +326,23 @@ export const MidYearForm = ({
         />
       )}
       
+      {employee.status === 'Skipped' && (
+        <Card className="p-6 bg-purple-50 border border-purple-100 rounded-[2rem] flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 animate-bounce">
+            <AlertCircle className="w-6 h-6 text-purple-700" />
+          </div>
+          <div>
+            <h4 className="text-base font-bold text-purple-950 tracking-tight">Review Cycle Skipped</h4>
+            <p className="text-xs text-purple-700 mt-1 font-semibold">
+              This employee is currently marked as skipped/inactive for this performance review period.
+              {employee.skip_reason && (
+                <span> Reason given: <strong className="text-purple-950 font-bold">{employee.skip_reason}</strong>.</span>
+              )}
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Section 1: Enhanced Identity Profile */}
       <Card className="p-10 bg-white border border-black/[0.03] shadow-[0_2px_12px_rgba(0,0,0,0.02)] rounded-[2rem]">
         <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
@@ -346,6 +365,53 @@ export const MidYearForm = ({
             <p className="text-[10px] font-black text-[var(--color-apple-gray)]/40 uppercase tracking-[0.2em] mt-3 italic">
               EMPLOYEE ID: {employee.employee_id || 'N/A'}
             </p>
+
+            {/* Quick Actions Row */}
+            <div className="flex flex-wrap items-center gap-2 mt-5">
+              {!isShared && employee.status !== 'Submitted' && (
+                <button
+                  type="button"
+                  onClick={handleSaveDraftClick}
+                  disabled={!isDraftValid || isSavingDraft}
+                  className="px-3.5 py-1.5 rounded-full font-bold text-[11px] transition-all active:scale-95 bg-black/[0.04] text-[var(--color-apple-black)] hover:bg-black/[0.08] disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm"
+                >
+                  {isSavingDraft && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+                  Save Draft
+                </button>
+              )}
+              
+              {!isShared && (
+                <button 
+                  type="button"
+                  onClick={() => isFormValid && handleSaveAttempt()} 
+                  disabled={!isFormValid || isSaving}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-full font-bold text-[11px] transition-all active:scale-95 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm",
+                    employee.status === 'Submitted' ? "bg-emerald-600 hover:opacity-95" : "bg-[var(--color-apple-black)] hover:opacity-95"
+                  )}
+                >
+                  {isSaving && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+                  {!isSaving && <CheckCircle2 className="w-3 h-3 mr-1.5" />}
+                  {employee.status === 'Submitted' ? 'Update Feedback' : 'Record Feedback'}
+                </button>
+              )}
+
+              <button 
+                type="button"
+                onClick={handleShareAttempt} 
+                disabled={employee.status === 'Pending' || employee.status === 'Draft' || isShared || isSharing}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-full font-bold text-[11px] transition-all active:scale-95 border disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm",
+                  isShared 
+                    ? "bg-emerald-50 border-emerald-100 text-emerald-700 cursor-default" 
+                    : "bg-white border-[var(--color-apple-blue)]/20 text-[var(--color-apple-blue)] hover:bg-[var(--color-apple-blue)]/5"
+                )}
+              >
+                {isSharing && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+                {!isSharing && <Share2 className="w-3 h-3 mr-1.5" />}
+                {isShared ? 'Shared' : 'Share'}
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col items-center md:items-end justify-start pt-1">
@@ -518,7 +584,7 @@ export const MidYearForm = ({
                 <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
                   Quantify this individual's top contributions in H1 and detail their direct impact on team-wide business objectives.
                 </p>
-                {!isShared && (
+                {!isFieldsDisabled && (
                   <button
                     onClick={() => handleRefine('key_contributions', 'Key contributions and business impact')}
                     disabled={refiningField === 'key_contributions' || !midYearData.key_contributions || midYearData.key_contributions.length < 5}
@@ -529,7 +595,7 @@ export const MidYearForm = ({
                   </button>
                 )}
               </div>
-              {!isShared && (
+              {!isFieldsDisabled && (
                 <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3" />
                   Type a rough draft, then click "Refine with AI" above to polish it.
@@ -541,8 +607,14 @@ export const MidYearForm = ({
                   placeholder="Enter feedback or observations..."
                   value={midYearData.key_contributions}
                   onChange={(e) => setMidYearData(prev => ({ ...prev, key_contributions: e.target.value }))}
-                  disabled={isShared}
+                  disabled={isFieldsDisabled}
+                  maxLength={4000}
                 />
+                <div className="flex justify-end mt-1">
+                  <span className="text-[10px] font-mono text-gray-400">
+                    {midYearData.key_contributions.length} / 4000 characters
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -560,7 +632,7 @@ export const MidYearForm = ({
                 <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
                   Reflecting on H1 performance, what specific actions or mindset shifts should this individual adopt to sharpen their execution and efficiency in H2?
                 </p>
-                {!isShared && (
+                {!isFieldsDisabled && (
                   <button
                     onClick={() => handleRefine('development_evolution', 'Future development and mindset shifts')}
                     disabled={refiningField === 'development_evolution' || !midYearData.development_evolution || midYearData.development_evolution.length < 5}
@@ -571,7 +643,7 @@ export const MidYearForm = ({
                   </button>
                 )}
               </div>
-              {!isShared && (
+              {!isFieldsDisabled && (
                 <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3" />
                   Type a rough draft, then click "Refine with AI" above to polish it.
@@ -583,8 +655,14 @@ export const MidYearForm = ({
                   placeholder="Enter feedback or observations..."
                   value={midYearData.development_evolution}
                   onChange={(e) => setMidYearData(prev => ({ ...prev, development_evolution: e.target.value }))}
-                  disabled={isShared}
+                  disabled={isFieldsDisabled}
+                  maxLength={4000}
                 />
+                <div className="flex justify-end mt-1">
+                  <span className="text-[10px] font-mono text-gray-400">
+                    {midYearData.development_evolution.length} / 4000 characters
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -602,7 +680,7 @@ export const MidYearForm = ({
                 <p className="text-[var(--color-apple-gray)] text-[13px] font-medium leading-relaxed">
                   What are this person's strongest leadership behaviors, drawing on the GREAT framework, and what specific areas need focused development to amplify their impact?
                 </p>
-                {!isShared && (
+                {!isFieldsDisabled && (
                   <button
                     onClick={() => handleRefine('leadership_mastery', 'Leadership behaviors and GREAT framework alignment')}
                     disabled={refiningField === 'leadership_mastery' || !midYearData.leadership_mastery || midYearData.leadership_mastery.length < 5}
@@ -649,19 +727,27 @@ export const MidYearForm = ({
                 )}
               </AnimatePresence>
               
-              {!isShared && (
+              {!isFieldsDisabled && (
                 <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3" />
                   Type a rough draft, then click "Refine with AI" above to polish it.
                 </p>
               )}
-              <textarea
-                className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
-                placeholder="Synthesize leadership feedback here..."
-                value={midYearData.leadership_mastery || ''}
-                onChange={(e) => setMidYearData(prev => ({ ...prev, leadership_mastery: e.target.value }))}
-                disabled={isShared}
-              />
+              <div className="relative group">
+                <textarea
+                  className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] min-h-[120px] focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
+                  placeholder="Synthesize leadership feedback here..."
+                  value={midYearData.leadership_mastery || ''}
+                  onChange={(e) => setMidYearData(prev => ({ ...prev, leadership_mastery: e.target.value }))}
+                  disabled={isFieldsDisabled}
+                  maxLength={4000}
+                />
+                <div className="flex justify-end mt-1">
+                  <span className="text-[10px] font-mono text-gray-400">
+                    {(midYearData.leadership_mastery || '').length} / 4000 characters
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -683,7 +769,7 @@ export const MidYearForm = ({
                       className="w-full bg-white border border-black/10 rounded-2xl px-5 py-4 text-[13px] font-semibold outline-none focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 appearance-none cursor-pointer shadow-sm disabled:opacity-50"
                       value={midYearData.performance_trending_rating || ''}
                       onChange={(e) => setMidYearData(prev => ({ ...prev, performance_trending_rating: e.target.value }))}
-                      disabled={isShared}
+                      disabled={isFieldsDisabled}
                     >
                       <option value="">Select Trending Rating...</option>
                       <option value="Exceptional Results">Exceptional Results</option>
@@ -706,7 +792,7 @@ export const MidYearForm = ({
                       className="w-full bg-white border border-black/10 rounded-2xl px-5 py-4 text-[13px] font-semibold outline-none focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 appearance-none cursor-pointer shadow-sm disabled:opacity-50"
                       value={midYearData.promotion_readiness || ''}
                       onChange={(e) => setMidYearData(prev => ({ ...prev, promotion_readiness: e.target.value as any }))}
-                      disabled={isShared}
+                      disabled={isFieldsDisabled}
                     >
                       <option value="">Select Readiness...</option>
                       {PROMOTION_READINESS_OPTIONS.map(opt => (
@@ -720,14 +806,39 @@ export const MidYearForm = ({
             </div>
             
             <div className="space-y-3 pt-6 border-t border-black/[0.05]">
-              <label className="text-[9px] font-bold text-[var(--color-apple-gray)] uppercase tracking-widest block">Additional Calibration Notes</label>
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-[9px] font-bold text-[var(--color-apple-gray)] uppercase tracking-widest block">Additional Calibration Notes</label>
+                {!isFieldsDisabled && (
+                  <button
+                    type="button"
+                    onClick={() => handleRefine('additional_notes', 'Additional notes and calibration context')}
+                    disabled={refiningField === 'additional_notes' || !midYearData.additional_notes || midYearData.additional_notes.length < 5}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[11px] font-bold hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    {refiningField === 'additional_notes' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    Refine with AI
+                  </button>
+                )}
+              </div>
+              {!isFieldsDisabled && (
+                <p className="text-[11px] text-purple-600/80 font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Write a quick draft, then click "Refine with AI" to polish your notes.
+                </p>
+              )}
               <textarea
                 className="w-full bg-black/[0.02] border border-black/[0.05] rounded-xl p-4 text-[13px] h-24 focus:bg-white focus:ring-4 focus:ring-[var(--color-apple-blue)]/5 focus:border-[var(--color-apple-blue)]/20 outline-none transition-all leading-relaxed placeholder:text-[var(--color-apple-gray)]/50 disabled:opacity-70"
                 placeholder="Optional context for calibration committees..."
                 value={midYearData.additional_notes}
                 onChange={(e) => setMidYearData(prev => ({ ...prev, additional_notes: e.target.value }))}
-                disabled={isShared}
+                disabled={isFieldsDisabled}
+                maxLength={4000}
               />
+              <div className="flex justify-end mt-1">
+                <span className="text-[10px] font-mono text-gray-400">
+                  {(midYearData.additional_notes || '').length} / 4000 characters
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -764,6 +875,60 @@ export const MidYearForm = ({
       </Card>
     </motion.div>
   </AnimatePresence>
+
+  {/* Floating Actions Bar */}
+  {!isSkipped && (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 bg-white/90 backdrop-blur-md px-5 py-3 rounded-full border border-black/10 shadow-[0_12px_40px_rgba(0,0,0,0.12)] max-w-lg w-[90%] sm:w-auto">
+      {saveStatusText && (
+        <span className="text-[10px] font-bold text-gray-500 italic flex items-center gap-1.5 mr-2 whitespace-nowrap">
+          {isSavingDraft && <Loader2 className="w-3 h-3 animate-spin" />}
+          {saveStatusText}
+        </span>
+      )}
+      <div className="flex items-center gap-2 ml-auto sm:ml-0">
+        {!isShared && employee.status !== 'Submitted' && (
+          <button
+            type="button"
+            onClick={handleSaveDraftClick}
+            disabled={!isDraftValid || isSavingDraft}
+            className="px-4 py-1.5 rounded-full font-bold text-[11px] h-8 transition-all active:scale-95 bg-black/[0.04] text-[var(--color-apple-black)] hover:bg-black/[0.08] disabled:opacity-50 disabled:cursor-not-allowed flex items-center whitespace-nowrap"
+          >
+            Save Draft
+          </button>
+        )}
+        
+        {!isShared && (
+          <button 
+            type="button"
+            onClick={() => isFormValid && handleSaveAttempt()} 
+            disabled={!isFormValid || isSaving}
+            className={cn(
+              "px-4 py-1.5 rounded-full font-bold text-[11px] h-8 transition-all active:scale-95 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center whitespace-nowrap shadow-sm",
+              employee.status === 'Submitted' ? "bg-emerald-600 hover:opacity-95" : "bg-[var(--color-apple-black)] hover:opacity-95"
+            )}
+          >
+            {isSaving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
+            {employee.status === 'Submitted' ? 'Update Feedback' : 'Record'}
+          </button>
+        )}
+
+        <button 
+          type="button"
+          onClick={handleShareAttempt} 
+          disabled={employee.status === 'Pending' || employee.status === 'Draft' || isShared || isSharing}
+          className={cn(
+            "px-4 py-1.5 rounded-full font-bold text-[11px] h-8 transition-all active:scale-95 border disabled:opacity-50 disabled:cursor-not-allowed flex items-center whitespace-nowrap shadow-sm",
+            isShared 
+              ? "bg-emerald-50 border-emerald-100 text-emerald-700 cursor-default" 
+              : "bg-white border-[var(--color-apple-blue)]/20 text-[var(--color-apple-blue)] hover:bg-[var(--color-apple-blue)]/5"
+          )}
+        >
+          {isSharing ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Share2 className="w-3 h-3 mr-1" />}
+          {isShared ? 'Shared' : 'Share'}
+        </button>
+      </div>
+    </div>
+  )}
 </div>
 );
 };

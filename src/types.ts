@@ -1,4 +1,4 @@
-export type FeedbackStatus = 'Pending' | 'Draft' | 'Submitted' | 'Shared' | 'Acknowledged';
+export type FeedbackStatus = 'Pending' | 'Draft' | 'Submitted' | 'Shared' | 'Acknowledged' | 'Skipped';
 
 export type ImportBucket = 'new' | 'profile_update_safe' | 'profile_update_preserve' | 'invalid' | 'duplicate';
 
@@ -109,6 +109,9 @@ export interface Employee {
   // Feedback data
   mid_year_checkin?: MidYearCheckin;
   status: FeedbackStatus;
+  skip_reason?: string | null;
+  skipped_at?: string | null;
+  skipped_by?: string | null;
   updated_at?: string;
   acknowledged_at?: string;
 }
