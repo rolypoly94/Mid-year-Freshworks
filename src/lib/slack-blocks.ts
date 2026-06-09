@@ -109,6 +109,17 @@ export function buildFeedbackModal(employee: Employee) {
     });
   }
 
+  blocks.push({
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Open in web app' },
+        url: WEB_APP_URL,
+      },
+    ],
+  });
+
   const modal: any = {
     type: 'modal',
     private_metadata: employee.employee_email.toLowerCase(),
