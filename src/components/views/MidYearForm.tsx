@@ -3,7 +3,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { MidYearCheckin, Employee, GreatReflection, GreatPillar } from '../../types';
-import { cn, parseDateString } from '../../lib/utils';
+import { cn, parseDateString, formatTenure } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -45,6 +45,7 @@ interface MidYearFormProps {
   onAdminOverride?: (employeeId: string, data: MidYearCheckin, reason: string, user: User | null) => Promise<boolean>;
   isOverriding?: boolean;
   user?: User | null;
+  readOnly?: boolean;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -84,6 +85,7 @@ export const MidYearForm = ({
   onAdminOverride,
   isOverriding,
   user,
+  readOnly,
   showToast,
 }: MidYearFormProps) => {
   const [midYearData, setMidYearData] = React.useState<MidYearCheckin>(() => hydrateFromEmployee(employee));
@@ -125,7 +127,7 @@ export const MidYearForm = ({
   const isSkipped = employee.status === 'Skipped';
   const isFinalized = ['Submitted', 'Shared', 'Acknowledged', 'Skipped'].includes(employee.status);
   const isShared = ['Shared', 'Acknowledged'].includes(employee.status);
-  const isFieldsDisabled = isShared || isSkipped;
+  const isFieldsDisabled = isShared || isSkipped || readOnly;
 
   // Dirty state: have we changed anything since the form was hydrated?
   const isDirty = JSON.stringify(midYearData) !== initialDataStrRef.current;
@@ -134,7 +136,7 @@ export const MidYearForm = ({
   // Skip if the review is already finalized, the form is empty, or nothing
   // has changed since the last save.
   React.useEffect(() => {
-    if (isFinalized || !isDirty || !isDraftValid || isSavingDraft) return;
+    if (isFinalized || !isDirty || !isDraftValid || isSavingDraft || readOnly) return;
     const timer = setTimeout(() => {
       onSaveDraft(midYearData);
       initialDataStrRef.current = JSON.stringify(midYearData);
@@ -359,7 +361,7 @@ export const MidYearForm = ({
             </h3>
             <div className="flex flex-wrap justify-center md:justify-start items-center gap-2">
               <span className="text-[12px] font-bold text-[var(--color-apple-gray)] uppercase tracking-wide">
-                {employee.job_title} • {getLevelForGrade(employee.grade)?.includes('ic') ? 'IC' : 'MGR'} {employee.grade} • {employee.work_location || 'REMOTE'}
+                {employee.job_title} • {employee.grade} • {employee.work_location || 'REMOTE'}
               </span>
             </div>
             <p className="text-[10px] font-black text-[var(--color-apple-gray)]/40 uppercase tracking-[0.2em] mt-3 italic">
@@ -441,11 +443,11 @@ export const MidYearForm = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-black/[0.015] border border-black/[0.03] rounded-2xl p-5">
             <span className="text-[9px] font-bold text-[var(--color-apple-gray)] uppercase tracking-widest block mb-1.5">FW TENURE</span>
-            <span className="text-[15px] font-bold text-[var(--color-apple-black)]">{employee.tenure_in_freshworks || 'N/A'}</span>
+            <span className="text-[15px] font-bold text-[var(--color-apple-black)]">{formatTenure(employee.tenure_in_freshworks)}</span>
           </div>
           <div className="bg-black/[0.015] border border-black/[0.03] rounded-2xl p-5">
             <span className="text-[9px] font-bold text-[var(--color-apple-gray)] uppercase tracking-widest block mb-1.5">IN POSITION</span>
-            <span className="text-[15px] font-bold text-[var(--color-apple-black)]">{employee.tenure_in_position || 'N/A'}</span>
+            <span className="text-[15px] font-bold text-[var(--color-apple-black)]">{formatTenure(employee.tenure_in_position)}</span>
           </div>
           <div className="bg-black/[0.015] border border-black/[0.03] rounded-2xl p-5">
             <span className="text-[9px] font-bold text-[var(--color-apple-gray)] uppercase tracking-widest block mb-1.5">HIRE DATE</span>
@@ -877,7 +879,7 @@ export const MidYearForm = ({
   </AnimatePresence>
 
   {/* Floating Actions Bar */}
-  {!isSkipped && (
+  {!isSkipped && !readOnly && (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 bg-white/90 backdrop-blur-md px-5 py-3 rounded-full border border-black/10 shadow-[0_12px_40px_rgba(0,0,0,0.12)] max-w-lg w-[90%] sm:w-auto">
       {saveStatusText && (
         <span className="text-[10px] font-bold text-gray-500 italic flex items-center gap-1.5 mr-2 whitespace-nowrap">
