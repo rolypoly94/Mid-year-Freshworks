@@ -492,7 +492,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
 
         const computedDueDate = parseToISOString(dueDateRaw);
 
-        let computedWeight: number | undefined = undefined;
+        let computedWeight: number | null = null;
         if (weightRaw) {
           const numWeight = parseFloat(weightRaw);
           if (!isNaN(numWeight)) {
@@ -505,7 +505,7 @@ export const useImportExport = (user: User | null, showToast: (msg: string, type
           goal_category: category || 'General Objective',
           goal_description: description || '',
           status: status,
-          due_date: computedDueDate,
+          due_date: computedDueDate || null,
           weight: computedWeight
         };
 
