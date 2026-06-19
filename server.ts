@@ -105,6 +105,7 @@ async function startServer() {
         return res.status(403).json({ error: 'Forbidden' });
       }
       req.userEmail = email;
+      req.idToken = match[1];
       next();
     } catch (err) {
       console.error('Auth verification failed:', err);
@@ -113,10 +114,12 @@ async function startServer() {
   };
 
   const requireAdmin = async (req: any, res: any, next: any) => {
-    if (!db) return res.status(503).json({ error: 'Database service not available' });
     try {
-      const adminDoc = await db.collection('admins').doc(req.userEmail).get();
-      if (!adminDoc.exists) return res.status(403).json({ error: 'Admin access required' });
+      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/admins/${req.userEmail}`;
+      const restRes = await fetch(url, { headers: { Authorization: `Bearer ${(req as any).idToken}` } });
+      if (restRes.status === 404) return res.status(403).json({ error: 'Admin access required' });
+      if (!restRes.ok) throw new Error('REST check failed');
       next();
     } catch (err) {
       console.error('Admin check failed:', err);
@@ -249,18 +252,46 @@ async function startServer() {
         });
       }
 
-      const pendingEmployeesSnapshot = await db.collection('employees')
-        .where('status', '==', 'Pending')
-        .get();
+      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      // REST API structured query for employees where status == Pending
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents:runQuery`;
+      const queryBody = {
+        structuredQuery: {
+          from: [{ collectionId: 'employees' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: 'status' },
+              op: 'EQUAL',
+              value: { stringValue: 'Pending' }
+            }
+          }
+        }
+      };
 
-      if (pendingEmployeesSnapshot.empty) {
+      const restRes = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${(req as any).idToken}`
+        },
+        body: JSON.stringify(queryBody)
+      });
+      if (!restRes.ok) {
+        throw new Error(`Failed to fetch pending employees: ${restRes.status}`);
+      }
+      const data = await restRes.json();
+      
+      if (!data || data.length === 0 || !data[0].document) {
         return res.json({ message: 'No pending reports found. No emails sent.' });
       }
 
+      const { parseFirestoreDocument } = await import('./src/lib/firestore-rest-parser.js');
       const managersToEmail = new Set<string>();
-      pendingEmployeesSnapshot.forEach((doc: any) => {
-        const data = doc.data();
-        if (data.manager_email) managersToEmail.add(data.manager_email);
+      data.forEach((item: any) => {
+        if (item.document) {
+           const emp = parseFirestoreDocument(item.document);
+           if (emp && emp.manager_email) managersToEmail.add(emp.manager_email);
+        }
       });
 
       const emailedManagers = Array.from(managersToEmail);
@@ -295,19 +326,21 @@ async function startServer() {
     if (!employeeEmail) return res.status(400).json({ error: 'employee_email is required' });
 
     try {
-      const docSnap = await db.collection('employees').doc(employeeEmail).get();
-      if (!docSnap.exists) return res.status(404).json({ error: 'Employee not found' });
-      const employee = { id: docSnap.id, ...docSnap.data() };
-
-      // Authorise: caller must be the manager, the HRBP, or an admin.
-      const caller = (req as any).userEmail;
-      const isCallerAdmin = (await db.collection('admins').doc(caller).get()).exists;
-      const isCallerManager = employee.manager_email?.toLowerCase() === caller;
-      const isCallerHRBP = employee.hrbp_email?.toLowerCase() === caller;
-      if (!isCallerAdmin && !isCallerManager && !isCallerHRBP) {
-        return res.status(403).json({ error: 'Not authorised to notify this employee' });
+      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/employees/${employeeEmail}`;
+      const restRes = await fetch(url, { headers: { Authorization: `Bearer ${(req as any).idToken}` } });
+      
+      if (!restRes.ok) {
+        if (restRes.status === 404) return res.status(404).json({ error: 'Employee not found or access denied' });
+        throw new Error('Failed to fetch from Firestore via REST');
       }
+      
+      const restData = await restRes.json();
+      const { parseFirestoreDocument } = await import('./src/lib/firestore-rest-parser.js');
+      const employee = { id: employeeEmail, ...parseFirestoreDocument(restData) };
 
+      // Since REST fetch succeeded using the caller's ID token, Firestore rules 
+      // already authorized the read (must be Admin, Manager, or HRBP).
       if (employee.status !== 'Shared') {
         return res.status(409).json({ error: `Feedback is not in Shared state (status=${employee.status})` });
       }
