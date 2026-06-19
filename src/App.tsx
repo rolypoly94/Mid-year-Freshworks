@@ -81,11 +81,21 @@ const App = () => {
     saveFeedback, 
     shareReview, 
     adminOverrideReview,
-    skipEmployeeReview
+    skipEmployeeReview,
+    unlockEmployeeReview
   } = usePerformanceActions(showToast);
 
   const handleSkipEmployee = async (employeeId: string, skipReason: string | null) => {
     const success = await skipEmployeeReview(employeeId, skipReason, user);
+    if (success) {
+      refreshAdminEmployees();
+      refreshHrbpEmployees();
+    }
+    return success;
+  };
+
+  const handleUnlockEmployee = async (employeeId: string) => {
+    const success = await unlockEmployeeReview(employeeId, user);
     if (success) {
       refreshAdminEmployees();
       refreshHrbpEmployees();
@@ -268,7 +278,7 @@ const App = () => {
                   TM Space
                 </button>
               )}
-              {isHRBP && (
+              {(isAdmin || isHRBP) && (
                 <button
                   onClick={() => { setViewMode('hrbp'); refreshHrbpEmployees(); }}
                   className={cn(
@@ -357,19 +367,21 @@ const App = () => {
             }}
             showToast={showToast}
             onSkipEmployee={handleSkipEmployee}
+            onUnlockEmployee={handleUnlockEmployee}
           />
-        ) : viewMode === 'hrbp' && isHRBP ? (
+        ) : viewMode === 'hrbp' && (isAdmin || isHRBP) ? (
           <HRBPView 
-            employees={hrbpEmployees}
+            employees={isAdmin ? employees : hrbpEmployees}
             onDownload={() => {
-              if (hrbpEmployees.length === 0) {
+              const exportEmployees = isAdmin ? employees : hrbpEmployees;
+              if (exportEmployees.length === 0) {
                 showToast('No employees to export.', 'error');
                 return;
               }
               try {
                 const today = new Date().toISOString().split('T')[0];
-                handleDownloadReport(hrbpEmployees, `HRBP_Org_Report_${today}`);
-                showToast(`Report downloaded with ${hrbpEmployees.length} employees`, 'success');
+                handleDownloadReport(exportEmployees, `HRBP_Org_Report_${today}`);
+                showToast(`Report downloaded with ${exportEmployees.length} employees`, 'success');
               } catch (err) {
                 showToast('Failed to generate report.', 'error');
               }
