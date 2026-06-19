@@ -5,7 +5,7 @@ import { Employee, EmployeeAuditEntry, MidYearCheckin } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { formatDate, cn } from '../../lib/utils';
+import { formatDate, cn, formatTenure } from '../../lib/utils';
 import { User } from 'firebase/auth';
 import { AuditTrailSection } from './AuditTrailSection';
 import { OverrideModal } from './OverrideModal';
@@ -175,7 +175,7 @@ export const EmployeeView = ({
                 <Calendar className="w-4 h-4 text-amber-500" />
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tenure & Hire</span>
               </div>
-              <p className="text-sm font-bold text-gray-900 leading-tight">{employee.tenure_in_freshworks || 'N/A'}</p>
+              <p className="text-sm font-bold text-gray-900 leading-tight">{formatTenure(employee.tenure_in_freshworks)}</p>
               <p className="text-xs text-gray-500 mt-1">Hired: {formatDate(employee.hire_date)}</p>
             </Card>
 
