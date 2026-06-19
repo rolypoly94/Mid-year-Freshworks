@@ -55,6 +55,15 @@ export function parseDateString(dateStr: string | number | Date | null | undefin
   return isNaN(fallbackDate.getTime()) ? null : fallbackDate;
 }
 
+export function formatTenure(tenure: string | null | undefined): string {
+  if (!tenure) return 'N/A';
+  
+  let formatted = tenure.replace(/,?\s*\d+\s*[dD]ays?/g, '').trim();
+  formatted = formatted.replace(/,$/, '').trim();
+  
+  return formatted || tenure;
+}
+
 export const formatDate = (date: string | number | Date | null | undefined) => {
   if (date === undefined || date === null || date === '') return 'N/A';
   
