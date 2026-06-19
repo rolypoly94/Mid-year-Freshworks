@@ -16,7 +16,8 @@ import {
   History,
   AlertCircle,
   Target,
-  UserCheck
+  UserCheck,
+  Unlock
 } from 'lucide-react';
 import { ImportModal } from './ImportModal';
 import { AuditTrailModal } from './AuditTrailModal';
@@ -35,6 +36,7 @@ interface AdminViewProps {
   onProxyManager: (email: string) => void;
   showToast: (msg: string, type?: any) => void;
   onSkipEmployee?: (employeeId: string, skipReason: string | null) => Promise<boolean>;
+  onUnlockEmployee?: (employeeId: string) => Promise<boolean>;
 }
 
 export const AdminView = ({ 
@@ -50,7 +52,8 @@ export const AdminView = ({
   onTemplateDownload,
   onProxyManager,
   showToast,
-  onSkipEmployee
+  onSkipEmployee,
+  onUnlockEmployee
 }: AdminViewProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedManagers, setExpandedManagers] = useState<Record<string, boolean>>({});
@@ -397,17 +400,28 @@ export const AdminView = ({
 
                                           <button 
                                             onClick={() => setSelectedAuditEmployee(report)}
+                                             className={cn(
+                                               "inline-flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all text-[10px]",
+                                               (report.status === 'Submitted' || report.status === 'Skipped')
+                                                 ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+                                                 : "text-gray-300 cursor-not-allowed"
+                                             )}
                                             disabled={report.status !== 'Submitted' && report.status !== 'Skipped'}
-                                            className={cn(
-                                              "inline-flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all text-[10px]",
-                                              (report.status === 'Submitted' || report.status === 'Skipped')
-                                                ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
-                                                : "text-gray-300 cursor-not-allowed"
-                                            )}
                                           >
                                             <History className="w-3.5 h-3.5" />
                                             View Audit
                                           </button>
+
+                                          {onUnlockEmployee && ['Submitted', 'Shared', 'Acknowledged'].includes(report.status) && (
+                                            <button
+                                              onClick={() => onUnlockEmployee(report.id)}
+                                              className="inline-flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all text-[10px] cursor-pointer"
+                                              title="Reset review to Draft status so manager can edit"
+                                            >
+                                              <Unlock className="w-3.5 h-3.5" />
+                                              Unlock / Re-edit
+                                            </button>
+                                          )}
                                         </div>
                                       </td>
                                     </tr>
