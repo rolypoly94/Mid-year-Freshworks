@@ -35,9 +35,9 @@ export function buildReleaseDM(employee: Employee) {
         elements: [
           {
             type: 'button',
-            text: { type: 'plain_text', text: 'Open feedback' },
+            text: { type: 'plain_text', text: 'Open in Web Portal' },
             style: 'primary',
-            action_id: 'open_feedback',
+            url: WEB_APP_URL,
             value: employee.employee_email.toLowerCase(),
           },
         ],
