@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Employee } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
+import { MidYearForm } from './MidYearForm';
 import { CalibrationChart } from '../charts/CalibrationChart';
 import { cn } from '../../lib/utils';
 import { 
@@ -10,7 +12,8 @@ import {
   CheckCircle2, 
   Clock, 
   TrendingUp, 
-  AlertCircle 
+  AlertCircle,
+  Search
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -29,6 +32,9 @@ interface HRBPViewProps {
 }
 
 export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const stats = useMemo(() => ({
     total: employees.length,
     completed: employees.filter(e => ['Submitted', 'Shared', 'Acknowledged'].includes(e.status)).length,
@@ -93,6 +99,40 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
 
     return Object.values(managersWithRatings).sort((a, b) => a.managerName.localeCompare(b.managerName));
   }, [employees]);
+
+  const filteredDetailedEmployees = useMemo(() => {
+    if (!searchQuery) return employees;
+    const lowerQuery = searchQuery.toLowerCase();
+    return employees.filter(emp => 
+      emp.employee_name.toLowerCase().includes(lowerQuery) ||
+      emp.employee_id.toLowerCase().includes(lowerQuery) ||
+      emp.manager_name.toLowerCase().includes(lowerQuery)
+    );
+  }, [employees, searchQuery]);
+
+  if (selectedEmployee) {
+    return (
+      <div className="space-y-6">
+        <button 
+          onClick={() => setSelectedEmployee(null)}
+          className="flex items-center gap-2 text-sm font-bold text-[var(--color-apple-blue)] hover:text-blue-700 transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-black/5"
+        >
+          &larr; Back to HRBP Dashboard
+        </button>
+        <MidYearForm
+          employee={selectedEmployee}
+          onSave={() => {}}
+          onShare={() => {}}
+          onSaveDraft={() => {}}
+          isSaving={false}
+          isSavingDraft={false}
+          isSharing={false}
+          readOnly={true}
+          showToast={() => {}}
+        />
+      </div>
+    );
+  }
 
   if (employees.length === 0) {
     return (
@@ -245,7 +285,19 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
 
       {/* Employee Detail List */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-gray-900">Detailed Report List</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h2 className="text-lg font-bold text-gray-900">Detailed Report List</h2>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, ID, or manager..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-apple-blue)] focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -260,8 +312,13 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
-                {employees.map(emp => (
-                  <tr key={emp.id} className="hover:bg-gray-50/50">
+                {filteredDetailedEmployees.length > 0 ? (
+                  filteredDetailedEmployees.map(emp => (
+                    <tr 
+                      key={emp.id} 
+                      className="hover:bg-gray-50/50 cursor-pointer"
+                      onClick={() => setSelectedEmployee(emp)}
+                    >
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-bold text-gray-900 leading-none mb-1">{emp.employee_name}</p>
@@ -304,7 +361,14 @@ export const HRBPView = ({ employees, onDownload }: HRBPViewProps) => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 font-medium">
+                      No matching records found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
