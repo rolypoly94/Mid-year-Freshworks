@@ -260,6 +260,41 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
     }
   };
 
+  const unlockEmployeeReview = async (employeeId: string, user: User | null) => {
+    if (!user) return false;
+    setIsSaving(true);
+    try {
+      const docRef = doc(db, 'employees', employeeId);
+      const timestamp = new Date().toISOString();
+      
+      await updateDoc(docRef, {
+        status: 'Draft',
+        updated_at: timestamp
+      });
+      
+      // Audit log
+      const auditRef = collection(db, 'employee_audit');
+      const auditEntry: EmployeeAuditEntry = {
+        employee_id: employeeId,
+        actor_email: user.email?.toLowerCase() || '',
+        actor_name: user.displayName || null,
+        event_type: 'admin_override',
+        timestamp: timestamp,
+        notes: 'Feedback unlocked and returned to Draft status for manager re-edit.'
+      };
+      await addDoc(auditRef, auditEntry);
+      
+      showToast('Review unlocked successfully and marked as Draft for editing.', 'success');
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `employees/${employeeId}`);
+      showToast('Unlock failed.', 'error');
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return { 
     isSaving, 
     isSavingDraft, 
@@ -269,6 +304,7 @@ export const usePerformanceActions = (showToast: (msg: string, type?: any) => vo
     saveFeedback, 
     shareReview, 
     adminOverrideReview,
-    skipEmployeeReview
+    skipEmployeeReview,
+    unlockEmployeeReview
   };
 };
