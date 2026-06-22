@@ -76,7 +76,7 @@ async function startServer() {
         ? admin.initializeApp({ projectId: firebaseConfig.projectId }) 
         : admin.app();
       
-      const rawDbId = firebaseConfig.firestoreDatabaseId;
+      const rawDbId = process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId;
       const dbId = (rawDbId && typeof rawDbId === 'string' && rawDbId.trim() !== '') 
         ? rawDbId.trim() 
         : '(default)';
@@ -115,7 +115,7 @@ async function startServer() {
 
   const requireAdmin = async (req: any, res: any, next: any) => {
     try {
-      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const dbId = process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
       const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/admins/${req.userEmail}`;
       const restRes = await fetch(url, { headers: { Authorization: `Bearer ${(req as any).idToken}` } });
       if (restRes.status === 404) return res.status(403).json({ error: 'Admin access required' });
@@ -252,7 +252,7 @@ async function startServer() {
         });
       }
 
-      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const dbId = process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
       // REST API structured query for employees where status == Pending
       const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents:runQuery`;
       const queryBody = {
@@ -326,7 +326,7 @@ async function startServer() {
     if (!employeeEmail) return res.status(400).json({ error: 'employee_email is required' });
 
     try {
-      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const dbId = process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
       const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/employees/${employeeEmail}`;
       const restRes = await fetch(url, { headers: { Authorization: `Bearer ${(req as any).idToken}` } });
       
